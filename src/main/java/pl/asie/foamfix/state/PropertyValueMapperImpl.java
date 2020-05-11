@@ -55,7 +55,7 @@ public class PropertyValueMapperImpl<C extends IStateHolder<C>> implements Prope
 	};
 
 	private final PropertyOrdering.Entry[] entryList;
-	private final Object2IntOpenHashMap<String> entryPositionMap;
+	private final Object2IntMap<String> entryPositionMap;
 	private final C[] stateMap;
 
 	@SuppressWarnings("unchecked") //Close enough given the bounds of C
@@ -68,7 +68,7 @@ public class PropertyValueMapperImpl<C extends IStateHolder<C>> implements Prope
 			entryList[i++] = PropertyOrdering.getEntry(p);
 		}
 
-		entryPositionMap = new Object2IntOpenHashMap<>(properties.size());
+		Object2IntOpenHashMap<String> entryPositionMap = new Object2IntOpenHashMap<>(properties.size());
 		entryPositionMap.defaultReturnValue(-1);
 
 		int bitPos = 0;
@@ -78,6 +78,9 @@ public class PropertyValueMapperImpl<C extends IStateHolder<C>> implements Prope
 			bitPos += ee.bits;
 			lastEntry = ee;
 		}
+
+		entryPositionMap.trim();
+		this.entryPositionMap = Object2IntMaps.unmodifiable(entryPositionMap);
 
 		if (lastEntry == null) {
 			stateMap = (C[]) new IStateHolder[1 << bitPos];

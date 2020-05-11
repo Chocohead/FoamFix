@@ -9,8 +9,10 @@ import java.util.Map;
 import com.google.common.collect.Lists;
 
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
+import it.unimi.dsi.fastutil.ints.Int2IntMaps;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntMaps;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenCustomHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 
@@ -69,19 +71,32 @@ public class PropertyOrdering {
 	}
 
 	public static class ObjectEntry extends Entry {
-		private Object2IntMap<Object> values;
+		private final Object2IntMap<Object> values;
 
 		private ObjectEntry(IProperty<?> property, boolean identity) {
 			super(property);
 
-			this.values = identity ? new Object2IntOpenCustomHashMap<>(Util.identityHashStrategy()) : new Object2IntOpenHashMap<>();
-			this.values.defaultReturnValue(-1);
+			Object2IntMap<Object> values;
+			Runnable trimmer;
+			if (identity) {
+				Object2IntOpenCustomHashMap<Object> map = new Object2IntOpenCustomHashMap<>(Util.identityHashStrategy());
+				trimmer = map::trim; //Why couldn't trim have some common parent between normal and custom open maps?
+				values = map;
+			} else {
+				Object2IntOpenHashMap<Object> map = new Object2IntOpenHashMap<>();
+				trimmer = map::trim;
+				values = map;
+			}
+			values.defaultReturnValue(-1);
 			
 			Collection<?> allowedValues = property.getAllowedValues();
 			int i = 0;
 			for (Object o : allowedValues) {
-				this.values.put(o, i++);
+				values.put(o, i++);
 			}
+
+			trimmer.run();
+			this.values = Object2IntMaps.unmodifiable(values);
 		}
 
 		@Override
@@ -130,19 +145,22 @@ public class PropertyOrdering {
 	}
 
 	public static class IntegerEntry extends Entry {
-		private Int2IntMap values;
+		private final Int2IntMap values;
 
 		private IntegerEntry(IProperty<?> property) {
 			super(property);
 
-			this.values = new Int2IntOpenHashMap();
-			this.values.defaultReturnValue(-1);
+			Int2IntOpenHashMap values = new Int2IntOpenHashMap();
+			values.defaultReturnValue(-1);
 			
 			Collection<?> allowedValues = property.getAllowedValues();
 			int i = 0;
 			for (Object o : allowedValues) {
-				this.values.put((int) o, i++);
+				values.put((int) o, i++);
 			}
+
+			values.trim();
+			this.values = Int2IntMaps.unmodifiable(values);
 		}
 
 		@Override
