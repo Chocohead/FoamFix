@@ -9,7 +9,8 @@
   "client": [
     "client.MixinBasicBakedModel",
     "client.MixinMultipartBakedModel",
-    "client.MixinWeightedBakedModel"
+    "client.MixinWeightedBakedModel",
+    "client.TrsrBakedModelMixin"
   ],
   "injectors": {
     "defaultRequire": 1
