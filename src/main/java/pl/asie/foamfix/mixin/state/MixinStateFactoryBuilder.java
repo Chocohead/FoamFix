@@ -28,31 +28,34 @@
 
 package pl.asie.foamfix.mixin.state;
 
-import com.google.common.collect.Maps;
-import net.minecraft.state.State;
-import net.minecraft.state.StateManager;
-import net.minecraft.state.property.Property;
+import java.util.Map;
+
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import net.minecraft.state.IProperty;
+import net.minecraft.state.IStateHolder;
+import net.minecraft.state.StateContainer;
+import net.minecraft.state.StateContainer.IFactory;
+import net.minecraft.state.StateHolder;
+
 import pl.asie.foamfix.state.FoamyStateFactory;
 
-import java.util.Map;
-
-@Mixin(StateManager.Builder.class)
-public class MixinStateFactoryBuilder {
+@Mixin(StateContainer.Builder.class)
+public class MixinStateFactoryBuilder<O, S extends IStateHolder<S>> {
 	@Shadow
-	private Object owner;
+	private @Final O owner;
 	@Shadow
-	private Map<String, Property<?>> namedProperties;
+	private @Final Map<String, IProperty<?>> properties;
 
-	@Inject(at = @At("HEAD"), method = "build", cancellable = true)
-	public void beforeBuild(StateManager.Factory factory, CallbackInfoReturnable<StateManager<?, ?>> info) {
+	@Inject(at = @At("HEAD"), method = "create", cancellable = true)
+	public <A extends StateHolder<O, S>> void beforeBuild(IFactory<O, S, A> factory, CallbackInfoReturnable<StateContainer<O, S>> info) {
 		if (FoamyStateFactory.hasFactory(owner)) {
-			//noinspection unchecked
-			info.setReturnValue(new FoamyStateFactory(owner, factory, namedProperties));
+			info.setReturnValue(new FoamyStateFactory<>(owner, factory, properties));
 			info.cancel();
 		}
 	}

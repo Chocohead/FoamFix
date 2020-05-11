@@ -28,28 +28,30 @@
 
 package pl.asie.foamfix.mixin.client;
 
-import net.minecraft.client.render.model.BakedQuad;
-import net.minecraft.client.render.model.BasicBakedModel;
-import net.minecraft.client.render.model.json.ModelItemPropertyOverrideList;
-import net.minecraft.client.render.model.json.ModelTransformation;
-import net.minecraft.client.texture.Sprite;
-import net.minecraft.util.math.Direction;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import net.minecraft.client.renderer.model.BakedQuad;
+import net.minecraft.client.renderer.model.ItemCameraTransforms;
+import net.minecraft.client.renderer.model.ItemOverrideList;
+import net.minecraft.client.renderer.model.SimpleBakedModel;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.util.Direction;
 
-@Mixin(BasicBakedModel.class)
+@SuppressWarnings("deprecation") //Can't do anything about that
+@Mixin(SimpleBakedModel.class)
 public class MixinBasicBakedModel {
 	/**
 	 * This saves a good 9*7*8=504 bytes per model, in the best case, which isn't bad at all - and it doesn't hurt!
 	 */
 	@Inject(method = "<init>", at = @At("RETURN"))
-	public void construct(List<BakedQuad> list_1, Map<Direction, List<BakedQuad>> map_1, boolean boolean_1, boolean boolean_2, boolean boolean_3, Sprite sprite_1, ModelTransformation modelTransformation_1, ModelItemPropertyOverrideList modelItemPropertyOverrideList_1, CallbackInfo info) {
+	public void construct(List<BakedQuad> list_1, Map<Direction, List<BakedQuad>> map_1, boolean boolean_1, boolean boolean_2, boolean boolean_3, TextureAtlasSprite sprite_1, ItemCameraTransforms modelTransformation_1, ItemOverrideList modelItemPropertyOverrideList_1, CallbackInfo info) {
 		if (list_1 instanceof ArrayList) {
 			((ArrayList<BakedQuad>) list_1).trimToSize();
 		}

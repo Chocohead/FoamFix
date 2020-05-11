@@ -28,26 +28,22 @@
 
 package pl.asie.foamfix.mixin.client;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.client.render.model.BakedModel;
-import net.minecraft.client.render.model.MultipartBakedModel;
-import net.minecraft.client.render.model.WeightedBakedModel;
-import org.apache.commons.lang3.tuple.Pair;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Predicate;
+import net.minecraft.client.renderer.model.WeightedBakedModel;
 
 @Mixin(WeightedBakedModel.class)
 public class MixinWeightedBakedModel {
 	@Inject(method = "<init>", at = @At("RETURN"))
-	public void construct(List list_1, CallbackInfo info) {
+	public void construct(List<?> list_1, CallbackInfo info) {
 		if (list_1 instanceof ArrayList) {
-			((ArrayList) list_1).trimToSize();
+			((ArrayList<?>) list_1).trimToSize();
 		}
 	}
 }

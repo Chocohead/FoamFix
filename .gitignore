@@ -4,6 +4,13 @@
 build/
 out/
 
+#Eclipse
+.settings
+.project
+.classpath
+*.launch
+bin
+
 # idea
 
 .idea/

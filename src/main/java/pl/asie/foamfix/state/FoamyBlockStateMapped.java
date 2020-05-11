@@ -28,26 +28,27 @@
 
 package pl.asie.foamfix.state;
 
-import com.google.common.collect.*;
+import java.util.Map;
+
+import com.google.common.collect.ImmutableMap;
+
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
-import net.minecraft.state.property.Property;
-
-import java.util.Map;
+import net.minecraft.state.IProperty;
 
 public class FoamyBlockStateMapped extends BlockState {
 	protected final PropertyValueMapper<BlockState> owner;
-	protected final ImmutableMap<Property<?>, Comparable<?>> properties;
+	protected final ImmutableMap<IProperty<?>, Comparable<?>> properties;
 	protected int value;
 
-	public FoamyBlockStateMapped(PropertyValueMapperImpl<BlockState> owner, Block blockIn, ImmutableMap<Property<?>, Comparable<?>> propertiesIn) {
+	public FoamyBlockStateMapped(PropertyValueMapperImpl<BlockState> owner, Block blockIn, ImmutableMap<IProperty<?>, Comparable<?>> propertiesIn) {
 		super(blockIn, propertiesIn);
 		this.owner = owner;
 		this.properties = propertiesIn;
 	}
 
 	@Override
-	public <T extends Comparable<T>, V extends T> BlockState with(Property<T> property, V value) {
+	public <T extends Comparable<T>, V extends T> BlockState with(IProperty<T> property, V value) {
 		BlockState state = owner.with(this.value, property, value);
 
 		if (state == null) {
@@ -63,7 +64,7 @@ public class FoamyBlockStateMapped extends BlockState {
 	}
 
 	@Override
-	public void createWithTable(Map<Map<Property<?>, Comparable<?>>, BlockState> map_1) {
+	public void buildPropertyValueTable(Map<Map<IProperty<?>, Comparable<?>>, BlockState> map_1) {
 		this.value = owner.generateValue(this);
 	}
 }

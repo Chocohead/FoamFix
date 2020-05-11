@@ -28,27 +28,23 @@
 
 package pl.asie.foamfix.state;
 
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+
 import com.google.common.collect.Lists;
-import it.unimi.dsi.fastutil.ints.Int2IntMap;
-import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
-import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
+
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenCustomHashMap;
+import it.unimi.dsi.fastutil.objects.Object2IntMaps;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import net.minecraft.state.State;
-import net.minecraft.state.property.BooleanProperty;
-import net.minecraft.state.property.EnumProperty;
-import net.minecraft.state.property.IntProperty;
-import net.minecraft.state.property.Property;
-import net.minecraft.util.math.MathHelper;
-import pl.asie.foamfix.util.HashingStrategies;
 
-import java.util.*;
+import net.minecraft.state.IProperty;
+import net.minecraft.state.IStateHolder;
 
-public class PropertyValueMapperImpl<C extends State<C>> implements PropertyValueMapper<C> {
-	private static final Comparator<? super Property<?>> COMPARATOR_BIT_FITNESS = (Comparator<Property<?>>) (first, second) -> {
-		int diff1 = PropertyOrdering.getEntry(first).bitSize - first.getValues().size();
-		int diff2 = PropertyOrdering.getEntry(second).bitSize - second.getValues().size();
+public class PropertyValueMapperImpl<C extends IStateHolder<C>> implements PropertyValueMapper<C> {
+	private static final Comparator<? super IProperty<?>> COMPARATOR_BIT_FITNESS = (Comparator<IProperty<?>>) (first, second) -> {
+		int diff1 = PropertyOrdering.getEntry(first).bitSize - first.getAllowedValues().size();
+		int diff2 = PropertyOrdering.getEntry(second).bitSize - second.getAllowedValues().size();
 		// We want to put properties with higher diff-values last,
 		// so that the array is as small as possible.
 		if (diff1 == diff2) {
@@ -60,14 +56,15 @@ public class PropertyValueMapperImpl<C extends State<C>> implements PropertyValu
 
 	private final PropertyOrdering.Entry[] entryList;
 	private final Object2IntOpenHashMap<String> entryPositionMap;
-	private final State[] stateMap;
+	private final C[] stateMap;
 
-	public PropertyValueMapperImpl(Collection<Property<?>> properties) {
+	@SuppressWarnings("unchecked") //Close enough given the bounds of C
+	public PropertyValueMapperImpl(Collection<IProperty<?>> properties) {
 		entryList = new PropertyOrdering.Entry[properties.size()];
-		List<Property<?>> propertiesSortedFitness = Lists.newArrayList(properties);
+		List<IProperty<?>> propertiesSortedFitness = Lists.newArrayList(properties);
 		propertiesSortedFitness.sort(COMPARATOR_BIT_FITNESS);
 		int i = 0;
-		for (Property p : propertiesSortedFitness) {
+		for (IProperty<?> p : propertiesSortedFitness) {
 			entryList[i++] = PropertyOrdering.getEntry(p);
 		}
 
@@ -83,9 +80,9 @@ public class PropertyValueMapperImpl<C extends State<C>> implements PropertyValu
 		}
 
 		if (lastEntry == null) {
-			stateMap = new State[1 << bitPos];
+			stateMap = (C[]) new IStateHolder[1 << bitPos];
 		} else {
-			stateMap = new State[(1 << (bitPos - lastEntry.bits)) * lastEntry.property.getValues().size()];
+			stateMap = (C[]) new IStateHolder[(1 << (bitPos - lastEntry.bits)) * lastEntry.property.getAllowedValues().size()];
 		}
 	}
 
@@ -101,7 +98,7 @@ public class PropertyValueMapperImpl<C extends State<C>> implements PropertyValu
 		return value;
 	}
 
-	public <T extends Comparable<T>, V extends T> C with(int value, Property<T> property, V propertyValue) {
+	public <T extends Comparable<T>, V extends T> C with(int value, IProperty<T> property, V propertyValue) {
 		int bitPos = entryPositionMap.getInt(property.getName());
 		if (bitPos >= 0) {
 			PropertyOrdering.Entry e = PropertyOrdering.getEntry(property);
@@ -111,19 +108,17 @@ public class PropertyValueMapperImpl<C extends State<C>> implements PropertyValu
 			int bitMask = (e.bitSize - 1);
 			value = (value & (~(bitMask << bitPos)) | (nv << bitPos));
 
-			//noinspection unchecked
-			return (C) stateMap[value];
+			return stateMap[value];
 		}
 
 		return null;
 	}
 
 	public C getPropertyByValue(int value) {
-		//noinspection unchecked
-		return (C) stateMap[value];
+		return stateMap[value];
 	}
 
-	public <T extends Comparable<T>, V extends T> int withValue(int value, Property<T> property, V propertyValue) {
+	public <T extends Comparable<T>, V extends T> int withValue(int value, IProperty<T> property, V propertyValue) {
 		int bitPos = entryPositionMap.getInt(property.getName());
 		if (bitPos >= 0) {
 			PropertyOrdering.Entry e = PropertyOrdering.getEntry(property);

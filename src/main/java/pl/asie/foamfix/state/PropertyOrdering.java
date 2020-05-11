@@ -1,30 +1,36 @@
 package pl.asie.foamfix.state;
 
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.google.common.collect.Lists;
+
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenCustomHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import net.minecraft.state.property.BooleanProperty;
-import net.minecraft.state.property.EnumProperty;
-import net.minecraft.state.property.IntProperty;
-import net.minecraft.state.property.Property;
-import net.minecraft.util.math.MathHelper;
-import pl.asie.foamfix.util.HashingStrategies;
 
-import java.util.*;
+import net.minecraft.state.BooleanProperty;
+import net.minecraft.state.EnumProperty;
+import net.minecraft.state.IProperty;
+import net.minecraft.state.IntegerProperty;
+import net.minecraft.util.Util;
+import net.minecraft.util.math.MathHelper;
 
 public class PropertyOrdering {
 	public static abstract class Entry {
-		final Property property;
+		final IProperty<?> property;
 		final int bitSize;
 		final int bits;
 
-		private Entry(Property property) {
+		private Entry(IProperty<?> property) {
 			this.property = property;
 
-			this.bitSize = MathHelper.smallestEncompassingPowerOfTwo(property.getValues().size());
+			this.bitSize = MathHelper.smallestEncompassingPowerOfTwo(property.getAllowedValues().size());
 			int bits = 0;
 
 			int b = bitSize - 1;
@@ -52,7 +58,7 @@ public class PropertyOrdering {
 	}
 
 	public static class BooleanEntry extends Entry {
-		private BooleanEntry(Property property) {
+		private BooleanEntry(IProperty<?> property) {
 			super(property);
 		}
 
@@ -63,17 +69,15 @@ public class PropertyOrdering {
 	}
 
 	public static class ObjectEntry extends Entry {
-		private Object2IntMap values;
+		private Object2IntMap<Object> values;
 
-		private ObjectEntry(Property property, boolean identity) {
+		private ObjectEntry(IProperty<?> property, boolean identity) {
 			super(property);
 
-			//noinspection unchecked
-			this.values = identity ? new Object2IntOpenCustomHashMap(HashingStrategies.FASTUTIL_IDENTITY) : new Object2IntOpenHashMap();
+			this.values = identity ? new Object2IntOpenCustomHashMap<>(Util.identityHashStrategy()) : new Object2IntOpenHashMap<>();
 			this.values.defaultReturnValue(-1);
-			//noinspection unchecked
-			Collection<Object> allowedValues = property.getValues();
-
+			
+			Collection<?> allowedValues = property.getAllowedValues();
 			int i = 0;
 			for (Object o : allowedValues) {
 				this.values.put(o, i++);
@@ -87,19 +91,19 @@ public class PropertyOrdering {
 	}
 
 	public static class EnumEntrySorted extends Entry {
-		private EnumEntrySorted(Property property, int count) {
+		private EnumEntrySorted(IProperty<?> property, int count) {
 			super(property);
 		}
 
 		@Override
 		public int get(Object v) {
-			return ((Enum) v).ordinal();
+			return ((Enum<?>) v).ordinal();
 		}
 
-		public static Entry create(EnumProperty entry) {
-			Object[] values = entry.getType().getEnumConstants();
+		public static Entry create(EnumProperty<?> entry) {
+			Object[] values = entry.getValueClass().getEnumConstants();
 
-			if (entry.getValues().size() == values.length) {
+			if (entry.getAllowedValues().size() == values.length) {
 				return new EnumEntrySorted(entry, values.length);
 			} else {
 				return new ObjectEntry(entry, true);
@@ -110,7 +114,7 @@ public class PropertyOrdering {
 	public static class IntegerEntrySorted extends Entry {
 		private final int minValue, count;
 
-		private IntegerEntrySorted(Property property, int minValue, int count) {
+		private IntegerEntrySorted(IProperty<?> property, int minValue, int count) {
 			super(property);
 
 			this.minValue = minValue;
@@ -128,13 +132,13 @@ public class PropertyOrdering {
 	public static class IntegerEntry extends Entry {
 		private Int2IntMap values;
 
-		private IntegerEntry(Property property) {
+		private IntegerEntry(IProperty<?> property) {
 			super(property);
 
 			this.values = new Int2IntOpenHashMap();
 			this.values.defaultReturnValue(-1);
-			Collection<Object> allowedValues = property.getValues();
-
+			
+			Collection<?> allowedValues = property.getAllowedValues();
 			int i = 0;
 			for (Object o : allowedValues) {
 				this.values.put((int) o, i++);
@@ -142,12 +146,13 @@ public class PropertyOrdering {
 		}
 
 		@Override
+		@SuppressWarnings("deprecation") //It would be nice to not have to box this
 		public int get(Object v) {
 			return values.get(v);
 		}
 
-		public static Entry create(IntProperty entry) {
-			List<Integer> sorted = Lists.newArrayList(entry.getValues());
+		public static Entry create(IntegerProperty entry) {
+			List<Integer> sorted = Lists.newArrayList(entry.getAllowedValues());
 			sorted.sort(Comparator.naturalOrder());
 
 			int min = sorted.get(0);
@@ -165,17 +170,17 @@ public class PropertyOrdering {
 
 	}
 
-	private static final Map<Property, Entry> entryMap = new IdentityHashMap<>();
+	private static final Map<IProperty<?>, Entry> entryMap = new IdentityHashMap<>();
 
-	static Entry getEntry(Property property) {
+	static Entry getEntry(IProperty<?> property) {
 		Entry e = entryMap.get(property);
 		if (e == null) {
-			if (property instanceof IntProperty) {
-				e = IntegerEntry.create((IntProperty) property);
-			} else if (property.getClass() == BooleanProperty.class && property.getValues().size() == 2) {
+			if (property instanceof IntegerProperty) {
+				e = IntegerEntry.create((IntegerProperty) property);
+			} else if (property.getClass() == BooleanProperty.class && property.getAllowedValues().size() == 2) {
 				e = new BooleanEntry(property);
 			} else if (property instanceof EnumProperty) {
-				e = EnumEntrySorted.create((EnumProperty) property);
+				e = EnumEntrySorted.create((EnumProperty<?>) property);
 			} else {
 				e = new ObjectEntry(property, false);
 			}

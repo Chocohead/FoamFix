@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016, 2017, 2018, 2019 Adrian Siekierka
+ * Copyright (C) 2020 Chocohead
  *
  * This file is part of FoamFix.
  *
@@ -25,29 +25,14 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
+package pl.asie.foamfix;
 
-package pl.asie.foamfix.state;
+import org.spongepowered.asm.mixin.Mixins;
+import org.spongepowered.asm.mixin.connect.IMixinConnector;
 
-import java.util.Map;
-
-import com.google.common.collect.ImmutableMap;
-
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.state.IProperty;
-
-public class FoamyBlockStateEmpty extends BlockState {
-	public FoamyBlockStateEmpty(Block blockIn) {
-		super(blockIn, ImmutableMap.of());
-	}
-
+public class FoamyMixinConnector implements IMixinConnector {
 	@Override
-	public <T extends Comparable<T>, V extends T> BlockState with(IProperty<T> property, V value) {
-		throw new IllegalArgumentException("Cannot set property " + property + " as it does not exist in " + this.getBlock());
-	}
-
-	@Override
-	public void buildPropertyValueTable(Map<Map<IProperty<?>, Comparable<?>>, BlockState> map_1) {
-
+	public void connect() {
+		Mixins.addConfiguration("foamfix.mixins.json");
 	}
 }

@@ -1,0 +1,19 @@
+modLoader="javafml"
+loaderVersion="[31,)"
+
+issueTrackerURL="https://github.com/Chocohead/FoamFix/issues" #For some reason this lives outside of the mods?
+
+[[mods]]
+modId="foamfix"
+displayName="FoamFix"
+version="${file.jarVersion}"
+
+authors="Asie, Virtuoel and Chocohead"
+credits="Major credit to Asie for the original concept and Virtuoel for the 1.14/5 (Fabric) ports"
+description='''
+Memory usage optimization mod.
+'''
+
+displayURL="https://charset.asie.pl" #Should really be called homepage
+logoFile="icon.png" #Icon
+#updateJSONURL= #We don't have one of these

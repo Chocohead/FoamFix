@@ -28,32 +28,26 @@
 
 package pl.asie.foamfix.mixin.client;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.client.render.model.BakedModel;
-import net.minecraft.client.render.model.BakedQuad;
-import net.minecraft.client.render.model.BasicBakedModel;
-import net.minecraft.client.render.model.MultipartBakedModel;
-import net.minecraft.client.render.model.json.ModelItemPropertyOverrideList;
-import net.minecraft.client.render.model.json.ModelTransformation;
-import net.minecraft.client.texture.Sprite;
-import net.minecraft.util.math.Direction;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Predicate;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Predicate;
+import net.minecraft.block.BlockState;
+import net.minecraft.client.renderer.model.IBakedModel;
+import net.minecraft.client.renderer.model.MultipartBakedModel;
 
 @Mixin(MultipartBakedModel.class)
 public class MixinMultipartBakedModel {
 	@Inject(method = "<init>", at = @At("RETURN"))
-	public void construct(List<Pair<Predicate<BlockState>, BakedModel>> list_1, CallbackInfo info) {
+	public void construct(List<Pair<Predicate<BlockState>, IBakedModel>> list_1, CallbackInfo info) {
 		if (list_1 instanceof ArrayList) {
-			((ArrayList) list_1).trimToSize();
+			((ArrayList<?>) list_1).trimToSize();
 		}
 	}
 }

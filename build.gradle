@@ -1,66 +1,93 @@
-plugins {
-	id 'fabric-loom' version '0.2.6-SNAPSHOT'
-	id 'net.minecrell.licenser' version '0.4.1'
-	id "com.matthewprenger.cursegradle" version "1.4.0"
+buildscript {
+	repositories {
+		maven { url = 'https://files.minecraftforge.net/maven' }
+		maven { url = 'https://repo.spongepowered.org/maven' }
+		jcenter()
+		mavenCentral()
+	}
+	dependencies {
+		classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '3.+', changing: true
+		classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
+	}
+}
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'org.spongepowered.mixin'
+apply plugin: 'eclipse'
+
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+tasks.withType(JavaCompile) {
+	options.encoding = "UTF-8"
 }
 
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
 
-archivesBaseName = "foamfix"
-version = "0.12.2"
+def modID = "foamfix"
+archivesBaseName = "$modID-Forge"
+version = '0.12.2'
 
 minecraft {
+	mappings channel: 'snapshot', version: '20200225-1.15.1'
+
+	runs {
+		client {
+			workingDirectory project.file('run')
+
+			args '--mixin.config', "${modID}.mixins.json".toString()
+			//property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+			property 'forge.logging.console.level', 'debug'
+
+			mods {
+				"$modID" {//Groovy short hand for create(modID)
+					source sourceSets.main
+				}
+			}
+		}
+
+		server {
+			workingDirectory project.file('runServer')
+
+			args '--mixin.config', "${modID}.mixins.json".toString()
+			//property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+			property 'forge.logging.console.level', 'debug'
+
+			mods {
+				"$modID" {
+					source sourceSets.main
+				}
+			}
+		}
+	}
+}
+
+repositories {
+	mavenCentral()
+	maven { url 'https://repo.spongepowered.org/maven' }
 }
 
 dependencies {
-	minecraft "com.mojang:minecraft:1.15.2"
-	mappings "net.fabricmc:yarn:1.15.2+build.14:v2"
-	modImplementation "net.fabricmc:fabric-loader:0.7.8+build.184"
+	minecraft 'net.minecraftforge:forge:1.15.2-31.1.77'
+	implementation 'org.spongepowered:mixin:0.8.1-SNAPSHOT'
 }
 
-license {
-	sourceSets = [project.sourceSets.main]
-	header = project.file("docs/licenses/COPYING")
-	ignoreFailures = true
-	exclude '**/*.lang'
-	exclude '**/*.info'
-	exclude '**/*.mcmeta'
+mixin {
+	add sourceSets.main, "mixins.${modID}.refmap.json"
+}
 
-	matching('**/pl/asie/foamfix/api/**') {
-		header = project.file("docs/licenses/LICENSE-API")
+// Example for how to get properties into the manifest for reading by the runtime..
+jar {
+	manifest {
+		attributes([
+			'Specification-Title': "$modID",
+			'Specification-Vendor': 'asie',
+			'Specification-Version': '1',
+			'Implementation-Title': project.name,
+			'Implementation-Version': "$version",
+			'Implementation-Vendor' : 'Chocohead',
+			'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+			'MixinConnector': 'pl.asie.foamfix.FoamyMixinConnector'
+		])
 	}
 }
 
-// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-// if it is present.
-// If you remove this task, sources will not be generated.
-// task sourcesJar(type: Jar, dependsOn: classes) {
-//	classifier = 'sources'
-//	from sourceSets.main.allSource
-// }
-
-curseforge {
-	if(project.hasProperty("curseforge_api_key")) {
-		apiKey = project.properties.curseforge_api_key
-	}
-
-	project {
-		id = "278494"
-
-		releaseType = "beta"
-		addGameVersion "1.15.2"
-		addGameVersion "Fabric"
-
-		mainArtifact(remapJar) {
-			displayName = "FoamFix ${version} (1.15.2)"
-		}
-
-		afterEvaluate {
-			uploadTask.dependsOn remapJar
-		}
-	}
-	options {
-		forgeGradleIntegration = false
-	}
-}
+jar.finalizedBy 'reobfJar'
