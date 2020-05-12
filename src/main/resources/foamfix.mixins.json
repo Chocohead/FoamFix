@@ -12,7 +12,10 @@
     "client.MixinWeightedBakedModel",
     "client.TrsrBakedModelMixin",
     "client.ItemModelMesherForgeAccess",
-    "client.ModelBakeryMixin"
+    "client.ModelBakeryMixin",
+    "client.SimpleMultipartModelSelectorMixin",
+    "client.AndMultipartModelSelectorMixin",
+    "client.OrMultipartModelSelectorMixin"
   ],
   "injectors": {
     "defaultRequire": 1
