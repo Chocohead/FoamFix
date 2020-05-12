@@ -46,11 +46,16 @@ import net.minecraft.client.renderer.model.IBakedModel;
 
 import com.raoulvdberge.refinedpipes.render.TrsrBakedModel;
 
+import pl.asie.foamfix.FoamyCacherCleanser;
+
 @Pseudo //Don't want to hard depend on Refined Pipes at runtime
 @Mixin(value = TrsrBakedModel.class, remap = false)
 abstract class TrsrBakedModelMixin implements IBakedModel {
 	@Unique
 	private static final Map<TransformationMatrix, TransformationMatrix> MATRIX_POOL = new HashMap<>();
+	static {
+		FoamyCacherCleanser.addCleaner(MATRIX_POOL::clear); //These are only made in PipeBakedModel, which is only made in ModelBakeEvent
+	}
 
 	@Mutable
 	@Shadow

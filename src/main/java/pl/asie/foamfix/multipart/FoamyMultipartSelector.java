@@ -35,8 +35,13 @@ import java.util.function.Predicate;
 import net.minecraft.block.BlockState;
 import net.minecraft.state.IProperty;
 
+import pl.asie.foamfix.FoamyCacherCleanser;
+
 public class FoamyMultipartSelector implements Predicate<BlockState> {
 	private static final Map<FoamyMultipartSelector, FoamyMultipartSelector> CACHE = new HashMap<>();
+	static {
+		FoamyCacherCleanser.addCleaner(CACHE::clear); //Once the instances are all made there is no need to remember them
+	}
 
 	public static FoamyMultipartSelector create(IProperty<?> property, Object value) {
 		return CACHE.computeIfAbsent(new FoamyMultipartSelector(property, value), Function.identity());

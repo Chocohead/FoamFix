@@ -15,7 +15,8 @@
     "client.ModelBakeryMixin",
     "client.SimpleMultipartModelSelectorMixin",
     "client.AndMultipartModelSelectorMixin",
-    "client.OrMultipartModelSelectorMixin"
+    "client.OrMultipartModelSelectorMixin",
+    "client.ModelManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
