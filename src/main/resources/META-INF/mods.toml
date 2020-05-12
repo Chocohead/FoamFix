@@ -1,5 +1,5 @@
 modLoader="javafml"
-loaderVersion="[31,)"
+loaderVersion="[28.1,)"
 
 issueTrackerURL="https://github.com/Chocohead/FoamFix/issues" #For some reason this lives outside of the mods?
 
@@ -17,3 +17,8 @@ Memory usage optimization mod.
 displayURL="https://charset.asie.pl" #Should really be called homepage
 logoFile="icon.png" #Icon
 #updateJSONURL= #We don't have one of these
+
+[[dependencies.foamfix]]
+    modId="forge"
+    mandatory=true
+    versionRange="[28.1.45,)" #Minimum Forge needed for Mixin Bootstrap to work
