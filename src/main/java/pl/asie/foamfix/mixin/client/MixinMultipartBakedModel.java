@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016, 2017, 2018, 2019 Adrian Siekierka
+ * Copyright (C) 2020 Chocohead
  *
  * This file is part of FoamFix.
  *
@@ -25,29 +25,103 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
-
 package pl.asie.foamfix.mixin.client;
 
 import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.function.Predicate;
 
 import org.apache.commons.lang3.tuple.Pair;
+
+import org.objectweb.asm.Opcodes;
+
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Mutable;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import net.minecraft.block.BlockState;
+import net.minecraft.client.renderer.model.BakedQuad;
 import net.minecraft.client.renderer.model.IBakedModel;
 import net.minecraft.client.renderer.model.MultipartBakedModel;
+import net.minecraft.util.Direction;
 
 @Mixin(MultipartBakedModel.class)
-public class MixinMultipartBakedModel {
+abstract class MixinMultipartBakedModel implements IBakedModel {
+	@Shadow
+	@Mutable //We're only changing it once in it's own constructor call but Mixin insists it is a good idea anyway
+	private @Final List<Pair<Predicate<BlockState>, IBakedModel>> selectors;
+	@Shadow
+	private @Final Map<BlockState, BitSet> field_210277_g;
+	@Unique
+	private @Final Predicate<BlockState>[] componentTests;
+	@Unique
+	private @Final IBakedModel[] componentModels;
+
+	@Redirect(method = "<init>", at = @At(value = "FIELD", target = "Lnet/minecraft/client/renderer/model/MultipartBakedModel;selectors:Ljava/util/List;", opcode = Opcodes.PUTFIELD))
+	private void noNeed(MultipartBakedModel self, List<Pair<Predicate<BlockState>, IBakedModel>> components) {
+		selectors = Collections.emptyList();
+	}
+
+	@SuppressWarnings("unchecked")
 	@Inject(method = "<init>", at = @At("RETURN"))
-	public void construct(List<Pair<Predicate<BlockState>, IBakedModel>> list_1, CallbackInfo info) {
-		if (list_1 instanceof ArrayList) {
-			((ArrayList<?>) list_1).trimToSize();
+	private void construct(List<Pair<Predicate<BlockState>, IBakedModel>> components, CallbackInfo info) {
+		componentTests = new Predicate[components.size()];
+		componentModels = new IBakedModel[components.size()];
+
+		for (int i = 0; i < components.size(); i++) {
+			Pair<Predicate<BlockState>, IBakedModel> component = components.get(i);
+			componentTests[i] = component.getLeft();
+			componentModels[i] = component.getRight();
+		}
+	}
+
+	/**
+	 * @author Chocohead
+	 * @reason Use direct arrays over a list of pairs
+	 */
+	@Override
+	@Overwrite
+	@SuppressWarnings("deprecation")
+	public List<BakedQuad> getQuads(BlockState state, Direction side, Random rand) {
+		if (state == null) {
+			return Collections.emptyList();
+		} else {
+			BitSet activeParts = field_210277_g.get(state);
+			if (activeParts == null) {
+				activeParts = new BitSet();
+
+				for (int i = componentTests.length - 1; i >= 0; i--) {
+					if (componentTests[i].test(state)) {
+						activeParts.set(i);
+					}
+				}
+
+				field_210277_g.put(state, activeParts);
+			}
+
+			List<BakedQuad> quads = new ArrayList<>();
+			long seed = rand.nextLong();
+			Random componentRand = new Random(seed);
+
+			for (int i = 0; i < activeParts.length(); ++i) {
+				if (activeParts.get(i)) {
+					componentRand.setSeed(seed);
+					quads.addAll(componentModels[i].getQuads(state, side, componentRand));
+				}
+			}
+
+			return quads;
 		}
 	}
 }
