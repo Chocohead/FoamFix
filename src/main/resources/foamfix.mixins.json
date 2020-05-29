@@ -16,7 +16,10 @@
     "client.SimpleMultipartModelSelectorMixin",
     "client.AndMultipartModelSelectorMixin",
     "client.OrMultipartModelSelectorMixin",
-    "client.ModelManagerMixin"
+    "client.ModelManagerMixin",
+    "client.JsonUnbakedModelMixin",
+    "client.MultipartUnbakedModelMixin",
+    "client.WeightedUnbakedModelMixin"
   ],
   "injectors": {
     "defaultRequire": 1
