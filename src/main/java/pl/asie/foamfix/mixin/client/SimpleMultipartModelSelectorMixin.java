@@ -43,7 +43,8 @@ import net.minecraft.block.BlockState;
 import net.minecraft.client.renderer.model.multipart.PropertyValueCondition;
 import net.minecraft.state.IProperty;
 import net.minecraft.state.StateContainer;
-import pl.asie.foamfix.multipart.FoamyMultipartChain;
+
+import pl.asie.foamfix.multipart.FoamyAnyPredicate;
 import pl.asie.foamfix.multipart.FoamyMultipartSelector;
 
 @Mixin(PropertyValueCondition.class)
@@ -56,7 +57,7 @@ abstract class SimpleMultipartModelSelectorMixin {
 			Predicate<BlockState> out = func_212485_a(stateManager, property, value);
 			callback.setReturnValue(negate ? out.negate() : out);
 		} else {
-			callback.setReturnValue(new FoamyMultipartChain(!negate, values.stream().map(v -> func_212485_a(stateManager, property, v)).toArray(Predicate[]::new)));
+			callback.setReturnValue(new FoamyAnyPredicate(!negate, values.stream().map(v -> func_212485_a(stateManager, property, v)).toArray(Predicate[]::new)));
 		}
 	}
 

@@ -30,10 +30,13 @@ package pl.asie.foamfix.mixin.client;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -56,6 +59,8 @@ import net.minecraft.client.renderer.model.IBakedModel;
 import net.minecraft.client.renderer.model.MultipartBakedModel;
 import net.minecraft.util.Direction;
 
+import pl.asie.foamfix.multipart.FoamyAnyPredicate;
+
 @Mixin(MultipartBakedModel.class)
 abstract class MixinMultipartBakedModel implements IBakedModel {
 	@Shadow
@@ -76,13 +81,24 @@ abstract class MixinMultipartBakedModel implements IBakedModel {
 	@SuppressWarnings("unchecked")
 	@Inject(method = "<init>", at = @At("RETURN"))
 	private void construct(List<Pair<Predicate<BlockState>, IBakedModel>> components, CallbackInfo info) {
-		componentTests = new Predicate[components.size()];
-		componentModels = new IBakedModel[components.size()];
+		Map<IBakedModel, List<Predicate<BlockState>>> map = components.stream().collect(Collectors.groupingBy(Pair::getRight, IdentityHashMap::new, Collectors.mapping(Pair::getLeft, Collectors.toList())));
 
-		for (int i = 0; i < components.size(); i++) {
-			Pair<Predicate<BlockState>, IBakedModel> component = components.get(i);
-			componentTests[i] = component.getLeft();
-			componentModels[i] = component.getRight();
+		int size = map.size();
+		componentTests = new Predicate[size];
+		componentModels = new IBakedModel[size];
+
+		if (size == components.size()) {//Is there some value into trying to flatten the state predicates out?
+			for (int i = 0; i < size; i++) {
+				Pair<Predicate<BlockState>, IBakedModel> component = components.get(i);
+				componentTests[i] = component.getLeft();
+				componentModels[i] = component.getRight();
+			}
+		} else {
+			int i = 0;
+			for (Entry<IBakedModel, List<Predicate<BlockState>>> entry : map.entrySet()) {
+				componentTests[i] = FoamyAnyPredicate.ofFlattened(entry.getValue());
+				componentModels[i++] = entry.getKey();
+			}
 		}
 	}
 
@@ -94,9 +110,7 @@ abstract class MixinMultipartBakedModel implements IBakedModel {
 	@Overwrite
 	@SuppressWarnings("deprecation")
 	public List<BakedQuad> getQuads(BlockState state, Direction side, Random rand) {
-		if (state == null) {
-			return Collections.emptyList();
-		} else {
+		if (state != null) {
 			BitSet activeParts = field_210277_g.get(state);
 			if (activeParts == null) {
 				activeParts = new BitSet();
@@ -110,18 +124,21 @@ abstract class MixinMultipartBakedModel implements IBakedModel {
 				field_210277_g.put(state, activeParts);
 			}
 
-			List<BakedQuad> quads = new ArrayList<>();
-			long seed = rand.nextLong();
-			Random componentRand = new Random(seed);
+			if (!activeParts.isEmpty()) {
+				List<BakedQuad> quads = new ArrayList<>();
 
-			for (int i = 0; i < activeParts.length(); ++i) {
-				if (activeParts.get(i)) {
+				long seed = rand.nextLong();
+				Random componentRand = new Random(seed);
+
+				for (int i = activeParts.nextSetBit(0); i >= 0; i = activeParts.nextSetBit(i + 1)) {
 					componentRand.setSeed(seed);
 					quads.addAll(componentModels[i].getQuads(state, side, componentRand));
 				}
-			}
 
-			return quads;
+				return quads;
+			}
 		}
+
+		return Collections.emptyList();
 	}
 }

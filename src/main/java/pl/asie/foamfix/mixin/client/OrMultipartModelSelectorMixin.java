@@ -41,7 +41,8 @@ import net.minecraft.block.BlockState;
 import net.minecraft.client.renderer.model.multipart.ICondition;
 import net.minecraft.client.renderer.model.multipart.OrCondition;
 import net.minecraft.state.StateContainer;
-import pl.asie.foamfix.multipart.FoamyMultipartChain;
+
+import pl.asie.foamfix.multipart.FoamyAnyPredicate;
 
 @Mixin(OrCondition.class)
 class OrMultipartModelSelectorMixin {
@@ -55,6 +56,6 @@ class OrMultipartModelSelectorMixin {
 	@Overwrite
 	@SuppressWarnings("unchecked")
 	public Predicate<BlockState> getPredicate(StateContainer<Block, BlockState> stateManager) {		
-		return new FoamyMultipartChain(true, Streams.stream(conditions).map(condition -> condition.getPredicate(stateManager)).toArray(Predicate[]::new));
+		return new FoamyAnyPredicate(true, Streams.stream(conditions).map(condition -> condition.getPredicate(stateManager)).toArray(Predicate[]::new));
 	}
 }

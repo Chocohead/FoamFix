@@ -31,11 +31,11 @@ import java.util.function.Predicate;
 
 import net.minecraft.block.BlockState;
 
-public final class FoamyMultipartChain implements Predicate<BlockState> {
+public final class FoamyAllPredicate implements Predicate<BlockState> {
 	private final Predicate<BlockState>[] predicates;
 	private final boolean positive;
 
-	public FoamyMultipartChain(boolean positive, Predicate<BlockState>[] predicates) {
+	public FoamyAllPredicate(boolean positive, Predicate<BlockState>[] predicates) {
 		this.predicates = predicates;
 		this.positive = positive;
 	}
@@ -43,16 +43,16 @@ public final class FoamyMultipartChain implements Predicate<BlockState> {
 	@Override
 	public boolean test(BlockState state) {
 		for (Predicate<BlockState> predicate : predicates) {
-			if (predicate.test(state)) {
-				return positive;
+			if (!predicate.test(state)) {
+				return !positive;
 			}
 		}
 
-		return !positive;
+		return positive;
 	}
 
 	@Override
 	public Predicate<BlockState> negate() {
-		return new FoamyMultipartChain(!positive, predicates);
+		return new FoamyAllPredicate(!positive, predicates);
 	}
 }

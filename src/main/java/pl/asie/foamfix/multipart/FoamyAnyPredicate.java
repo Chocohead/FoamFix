@@ -27,15 +27,19 @@
  */
 package pl.asie.foamfix.multipart;
 
+import java.util.Arrays;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
+
+import com.google.common.collect.Streams;
 
 import net.minecraft.block.BlockState;
 
-public final class FoamyMultipartFullChain implements Predicate<BlockState> {
+public final class FoamyAnyPredicate implements Predicate<BlockState> {
 	private final Predicate<BlockState>[] predicates;
 	private final boolean positive;
 
-	public FoamyMultipartFullChain(boolean positive, Predicate<BlockState>[] predicates) {
+	public FoamyAnyPredicate(boolean positive, Predicate<BlockState>[] predicates) {
 		this.predicates = predicates;
 		this.positive = positive;
 	}
@@ -43,16 +47,37 @@ public final class FoamyMultipartFullChain implements Predicate<BlockState> {
 	@Override
 	public boolean test(BlockState state) {
 		for (Predicate<BlockState> predicate : predicates) {
-			if (!predicate.test(state)) {
-				return !positive;
+			if (predicate.test(state)) {
+				return positive;
 			}
 		}
 
-		return positive;
+		return !positive;
 	}
 
 	@Override
 	public Predicate<BlockState> negate() {
-		return new FoamyMultipartFullChain(!positive, predicates);
+		return new FoamyAnyPredicate(!positive, predicates);
+	}
+
+	public Stream<Predicate<BlockState>> flatten() {
+		return Arrays.stream(predicates).flatMap(test -> {
+			if (test.getClass() == FoamyAnyPredicate.class && ((FoamyAnyPredicate) test).positive == positive) {
+				return ((FoamyAnyPredicate) test).flatten();
+			} else {
+				return Stream.of(test);
+			}
+		});
+	}
+
+	@SuppressWarnings("unchecked")
+	public static Predicate<BlockState> ofFlattened(Iterable<Predicate<BlockState>> tests) {
+		return new FoamyAnyPredicate(true, Streams.stream(tests).flatMap(test -> {
+			if (test.getClass() == FoamyAnyPredicate.class && ((FoamyAnyPredicate) test).positive) {
+				return ((FoamyAnyPredicate) test).flatten();
+			} else {
+				return Stream.of(test);
+			}
+		}).toArray(Predicate[]::new));
 	}
 }
