@@ -29,14 +29,23 @@ package pl.asie.foamfix.mixin.client;
 
 import java.util.Map;
 
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.Slice;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import com.mojang.datafixers.util.Pair;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.model.IUnbakedModel;
 import net.minecraft.client.renderer.model.ModelBakery;
 import net.minecraft.client.renderer.model.ModelResourceLocation;
+import net.minecraft.client.renderer.texture.AtlasTexture;
+import net.minecraft.client.renderer.texture.SpriteMap;
 import net.minecraft.item.Item;
 import net.minecraft.util.ResourceLocation;
 
@@ -45,6 +54,11 @@ import net.minecraftforge.registries.IRegistryDelegate;
 
 @Mixin(ModelBakery.class)
 class ModelBakeryMixin {
+	@Shadow
+	private @Final Map<ResourceLocation, IUnbakedModel> topUnbakedModels;
+	@Shadow
+	private Map<ResourceLocation, Pair<AtlasTexture, AtlasTexture.SheetData>> sheetData;
+
 	@Redirect(method = "processLoading",
 				at = @At(value = "NEW", target = "(Lnet/minecraft/util/ResourceLocation;Ljava/lang/String;)Lnet/minecraft/client/renderer/model/ModelResourceLocation;"),
 				slice = @Slice(from = @At(value = "CONSTANT", args = "stringValue=items"),
@@ -55,5 +69,11 @@ class ModelBakeryMixin {
 
 		ModelResourceLocation out = itemToModel.get(ForgeRegistries.ITEMS.getValue(item).delegate);
 		return out != null ? out : new ModelResourceLocation(item, inventory);
+	}
+
+	@Inject(method = "uploadTextures", at = @At("RETURN"))
+	private void clearFinishedMaps(CallbackInfoReturnable<SpriteMap> info) {
+		topUnbakedModels.clear();
+		sheetData = null;
 	}
 }
