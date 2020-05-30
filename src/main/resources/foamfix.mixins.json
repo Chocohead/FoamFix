@@ -4,7 +4,9 @@
   "refmap": "mixins.foamfix.refmap.json",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
-    "state.MixinStateFactoryBuilder"
+    "state.MixinStateFactoryBuilder",
+    "dfu.SchemasMixin",
+    "dfu.MinecraftServerMixin"
   ],
   "client": [
     "client.MixinBasicBakedModel",
@@ -19,7 +21,8 @@
     "client.ModelManagerMixin",
     "client.JsonUnbakedModelMixin",
     "client.MultipartUnbakedModelMixin",
-    "client.WeightedUnbakedModelMixin"
+    "client.WeightedUnbakedModelMixin",
+    "dfu.BackupPromptScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1
