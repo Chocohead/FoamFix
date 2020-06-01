@@ -22,7 +22,8 @@
     "client.JsonUnbakedModelMixin",
     "client.MultipartUnbakedModelMixin",
     "client.WeightedUnbakedModelMixin",
-    "dfu.BackupPromptScreenMixin"
+    "dfu.BackupPromptScreenMixin",
+    "client.ModelListWrapperAccess"
   ],
   "injectors": {
     "defaultRequire": 1
