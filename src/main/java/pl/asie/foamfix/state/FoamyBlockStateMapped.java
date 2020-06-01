@@ -38,13 +38,11 @@ import net.minecraft.state.IProperty;
 
 public class FoamyBlockStateMapped extends BlockState {
 	protected final PropertyValueMapper<BlockState> owner;
-	protected final ImmutableMap<IProperty<?>, Comparable<?>> properties;
 	protected int value;
 
 	public FoamyBlockStateMapped(PropertyValueMapperImpl<BlockState> owner, Block blockIn, ImmutableMap<IProperty<?>, Comparable<?>> propertiesIn) {
 		super(blockIn, propertiesIn);
 		this.owner = owner;
-		this.properties = propertiesIn;
 	}
 
 	@Override
@@ -52,7 +50,7 @@ public class FoamyBlockStateMapped extends BlockState {
 		BlockState state = owner.with(this.value, property, value);
 
 		if (state == null) {
-			Comparable<?> comparable = this.properties.get(property);
+			Comparable<?> comparable = getValues().get(property);
 			if (comparable == null) {
 				throw new IllegalArgumentException("Cannot set property " + property + " as it does not exist in " + this.getBlock());
 			} else {
