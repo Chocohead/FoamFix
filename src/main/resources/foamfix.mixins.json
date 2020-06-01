@@ -22,6 +22,7 @@
     "client.JsonUnbakedModelMixin",
     "client.MultipartUnbakedModelMixin",
     "client.WeightedUnbakedModelMixin",
+    "client.WeightedUnbakedModelMixin$DeserialiserMixin",
     "dfu.BackupPromptScreenMixin",
     "client.ModelListWrapperAccess"
   ],
