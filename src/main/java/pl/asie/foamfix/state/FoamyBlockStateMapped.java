@@ -40,7 +40,7 @@ public class FoamyBlockStateMapped extends BlockState {
 	protected final PropertyValueMapper<BlockState> owner;
 	protected int value;
 
-	public FoamyBlockStateMapped(PropertyValueMapperImpl<BlockState> owner, Block blockIn, ImmutableMap<IProperty<?>, Comparable<?>> propertiesIn) {
+	public FoamyBlockStateMapped(PropertyValueMapper<BlockState> owner, Block blockIn, ImmutableMap<IProperty<?>, Comparable<?>> propertiesIn) {
 		super(blockIn, propertiesIn);
 		this.owner = owner;
 	}

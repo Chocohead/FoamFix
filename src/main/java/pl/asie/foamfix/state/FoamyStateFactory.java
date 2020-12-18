@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -60,13 +61,13 @@ public class FoamyStateFactory<O, S extends IStateHolder<S>> extends StateContai
 	}
 
 	private interface MappedStateFactory<O, S extends IStateHolder<S>, A extends StateHolder<O, S>> {
-		A create(PropertyValueMapperImpl<S> mapper, O baseObject, ImmutableMap<IProperty<?>, Comparable<?>> map);
+		A create(PropertyValueMapper<S> mapper, O baseObject, ImmutableMap<IProperty<?>, Comparable<?>> map);
 	}
 
 	private static class Factory<O, S extends IStateHolder<S>, A extends StateHolder<O, S>> implements IFactory<O, S, A> {
 		private final MappedStateFactory<O, S, A> factory;
 		private final Function<O, A> emptyFactory;
-		private PropertyValueMapperImpl<S> mapper;
+		private PropertyValueMapper<S> mapper;
 
 		public Factory(MappedStateFactory<O, S, A> factory, Function<O, A> emptyFactory) {
 			this.factory = factory;
@@ -80,7 +81,7 @@ public class FoamyStateFactory<O, S extends IStateHolder<S>> extends StateContai
 			}
 
 			if (mapper == null) {
-				mapper = new PropertyValueMapperImpl<>(var2.keySet());
+				mapper = var2.size() == 1 ? new SinglePropertyValueMapper<>(Iterables.getOnlyElement(var2.keySet())) : new PropertyValueMapperImpl<>(var2.keySet());
 			}
 
 			return factory.create(mapper, var1, var2);

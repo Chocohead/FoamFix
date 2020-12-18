@@ -56,7 +56,6 @@ public class MixinStateFactoryBuilder<O, S extends IStateHolder<S>> {
 	public <A extends StateHolder<O, S>> void beforeBuild(IFactory<O, S, A> factory, CallbackInfoReturnable<StateContainer<O, S>> info) {
 		if (FoamyStateFactory.hasFactory(owner)) {
 			info.setReturnValue(new FoamyStateFactory<>(owner, factory, properties));
-			info.cancel();
 		}
 	}
 }
