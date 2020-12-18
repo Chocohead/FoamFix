@@ -36,6 +36,9 @@ import com.google.common.collect.Iterables;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.fluid.Fluid;
+import net.minecraft.fluid.FluidState;
+import net.minecraft.fluid.IFluidState;
 import net.minecraft.state.IProperty;
 import net.minecraft.state.IStateHolder;
 import net.minecraft.state.StateContainer;
@@ -47,13 +50,15 @@ public class FoamyStateFactory<O, S extends IStateHolder<S>> extends StateContai
 	}
 
 	public static boolean hasFactory(Object baseObject) {
-		return baseObject instanceof Block;
+		return baseObject instanceof Block || baseObject instanceof Fluid;
 	}
 
 	@SuppressWarnings("unchecked")
 	private static <O, S extends IStateHolder<S>, A extends StateHolder<O, S>> IFactory<O, S, A> getFactory(O baseObject, IFactory<O, S, A> fallback) {
 		if (baseObject instanceof Block) {
 			return (Factory<O, S, A>) new Factory<Block, BlockState, BlockState>(FoamyBlockStateMapped::new, FoamyBlockStateEmpty::new);
+		} else if (baseObject instanceof Fluid) {
+			return (Factory<O, S, A>) new Factory<Fluid, IFluidState, FluidState>(FoamyFluidStateMapped::new, FoamyFluidStateEmpty::new);
 		} else {
 			System.err.println("[FoamFix/FoamyStateFactory] Should not be here! Is hasFactory matching getFactory? " + baseObject.getClass().getName());
 			return fallback;
