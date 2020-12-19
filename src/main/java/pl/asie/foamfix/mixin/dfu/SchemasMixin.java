@@ -35,8 +35,8 @@ import org.spongepowered.asm.mixin.Overwrite;
 
 import com.mojang.datafixers.DSL.TypeReference;
 import com.mojang.datafixers.DataFixer;
-import com.mojang.datafixers.Dynamic;
 import com.mojang.datafixers.schemas.Schema;
+import com.mojang.serialization.Dynamic;
 
 import net.minecraft.util.datafix.DataFixesManager;
 

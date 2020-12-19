@@ -32,21 +32,23 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.mojang.serialization.MapCodec;
+
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
-import net.minecraft.state.IProperty;
+import net.minecraft.state.Property;
 
 public class FoamyBlockStateMapped extends BlockState {
 	protected final PropertyValueMapper<BlockState> owner;
 	protected int value;
 
-	public FoamyBlockStateMapped(PropertyValueMapper<BlockState> owner, Block blockIn, ImmutableMap<IProperty<?>, Comparable<?>> propertiesIn) {
-		super(blockIn, propertiesIn);
+	public FoamyBlockStateMapped(PropertyValueMapper<BlockState> owner, Block block, ImmutableMap<Property<?>, Comparable<?>> properties, MapCodec<BlockState> codec) {
+		super(block, properties, codec);
 		this.owner = owner;
 	}
 
 	@Override
-	public <T extends Comparable<T>, V extends T> BlockState with(IProperty<T> property, V value) {
+	public <T extends Comparable<T>, V extends T> BlockState with(Property<T> property, V value) {
 		BlockState state = owner.with(this.value, property, value);
 
 		if (state == null) {
@@ -62,7 +64,7 @@ public class FoamyBlockStateMapped extends BlockState {
 	}
 
 	@Override
-	public void buildPropertyValueTable(Map<Map<IProperty<?>, Comparable<?>>, BlockState> map_1) {
+	public void func_235899_a_(Map<Map<Property<?>, Comparable<?>>, BlockState> states) {
 		this.value = owner.generateValue(this);
 	}
 }

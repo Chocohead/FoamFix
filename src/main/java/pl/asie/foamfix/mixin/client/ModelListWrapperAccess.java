@@ -32,7 +32,9 @@ import java.util.List;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(targets = "net/minecraft/client/renderer/model/ModelBakery$ModelListWrapper")
+import net.minecraft.client.renderer.model.ModelBakery.ModelListWrapper;
+
+@Mixin(ModelListWrapper.class)
 public interface ModelListWrapperAccess {
 	@Accessor
 	List<Object> getColorValues();

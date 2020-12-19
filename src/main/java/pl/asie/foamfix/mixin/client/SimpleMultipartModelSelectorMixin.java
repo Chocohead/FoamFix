@@ -41,7 +41,7 @@ import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.renderer.model.multipart.PropertyValueCondition;
-import net.minecraft.state.IProperty;
+import net.minecraft.state.Property;
 import net.minecraft.state.StateContainer;
 
 import pl.asie.foamfix.multipart.FoamyAnyPredicate;
@@ -52,20 +52,20 @@ abstract class SimpleMultipartModelSelectorMixin {
 	@SuppressWarnings("unchecked")
 	@Inject(method = "getPredicate", at = @At(value = "INVOKE", target = "Ljava/util/List;size()I", remap = false), cancellable = true, locals = LocalCapture.CAPTURE_FAILHARD)
 	private void predicateBetter(StateContainer<Block, BlockState> stateManager, CallbackInfoReturnable<Predicate<BlockState>> callback,
-									IProperty<?> property, String value, boolean negate, List<String> values) {
+									Property<?> property, String value, boolean negate, List<String> values) {
 		if (values.size() == 1) {
-			Predicate<BlockState> out = func_212485_a(stateManager, property, value);
+			Predicate<BlockState> out = makePropertyPredicate(stateManager, property, value);
 			callback.setReturnValue(negate ? out.negate() : out);
 		} else {
-			callback.setReturnValue(new FoamyAnyPredicate(!negate, values.stream().map(v -> func_212485_a(stateManager, property, v)).toArray(Predicate[]::new)));
+			callback.setReturnValue(new FoamyAnyPredicate(!negate, values.stream().map(v -> makePropertyPredicate(stateManager, property, v)).toArray(Predicate[]::new)));
 		}
 	}
 
 	@Shadow //Yarn named as createPredicate
-	abstract Predicate<BlockState> func_212485_a(StateContainer<Block, BlockState> stateFactory, IProperty<?> property, String valueString);
+	abstract Predicate<BlockState> makePropertyPredicate(StateContainer<Block, BlockState> stateFactory, Property<?> property, String valueString);
 
-	@Inject(method = "func_212485_a", at = @At(value = "RETURN"), cancellable = true, locals = LocalCapture.CAPTURE_FAILHARD)
-	private void cachePredicates(StateContainer<Block, BlockState> stateFactory, IProperty<?> property, String valueString, CallbackInfoReturnable<Predicate<BlockState>> callback, Optional<?> value) {
+	@Inject(method = "makePropertyPredicate", at = @At(value = "RETURN"), cancellable = true, locals = LocalCapture.CAPTURE_FAILHARD)
+	private void cachePredicates(StateContainer<Block, BlockState> stateFactory, Property<?> property, String valueString, CallbackInfoReturnable<Predicate<BlockState>> callback, Optional<?> value) {
 		callback.setReturnValue(FoamyMultipartSelector.create(property, value.get()));
 	}
 }

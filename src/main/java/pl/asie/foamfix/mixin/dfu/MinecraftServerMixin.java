@@ -36,8 +36,8 @@ import net.minecraft.server.MinecraftServer;
 
 @Mixin(MinecraftServer.class)
 abstract class MinecraftServerMixin {
-	@Inject(method = "convertMapIfNeeded", at = @At(value = "CONSTANT", args = "stringValue=Converting map!"))
-	private void noConvert(CallbackInfo info) {
+	@Inject(method = "func_240777_a_", at = @At(value = "CONSTANT", args = "stringValue=Converting map!"))
+	private static void noConvert(CallbackInfo info) {
 		throw new RuntimeException("You cannot upgrade old worlds with FoamFix installed! Please remove FoamFix to upgrade your world.");
 	}
 }

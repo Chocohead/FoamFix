@@ -45,7 +45,6 @@ import net.minecraft.client.renderer.model.SimpleBakedModel;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.util.Direction;
 
-@SuppressWarnings("deprecation") //Can't do anything about that
 @Mixin(SimpleBakedModel.class)
 public class MixinBasicBakedModel {
 	/**

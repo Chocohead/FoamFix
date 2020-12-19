@@ -27,21 +27,15 @@
  */
 package pl.asie.foamfix.mixin.client;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Constructor;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.At.Shift;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -56,13 +50,13 @@ import net.minecraft.block.BlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.model.IUnbakedModel;
 import net.minecraft.client.renderer.model.ModelBakery;
+import net.minecraft.client.renderer.model.ModelBakery.ModelListWrapper;
 import net.minecraft.client.renderer.model.ModelResourceLocation;
 import net.minecraft.client.renderer.model.multipart.Multipart;
 import net.minecraft.client.renderer.texture.AtlasTexture;
 import net.minecraft.client.renderer.texture.SpriteMap;
 import net.minecraft.item.Item;
 import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.Util;
 
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.IRegistryDelegate;
@@ -75,27 +69,6 @@ class ModelBakeryMixin {
 	private @Final Map<ResourceLocation, IUnbakedModel> topUnbakedModels;
 	@Shadow
 	private Map<ResourceLocation, Pair<AtlasTexture, AtlasTexture.SheetData>> sheetData;
-	@Unique
-	private static final BiFunction<Object, List<IUnbakedModel>, ?> MODEL_DEFINITION_CLONER = Util.make(() -> {
-		try {
-			Class<?> type = Class.forName("net.minecraft.client.renderer.model.ModelBakery$ModelListWrapper");
-
-			Constructor<?> maker = type.getDeclaredConstructor(List.class, List.class);
-			maker.setAccessible(true);
-
-			MethodHandle handle = MethodHandles.lookup().unreflectConstructor(maker);
-			return (instance, models) -> {
-				try {
-					return handle.invoke(models, ((ModelListWrapperAccess) instance).getColorValues());
-				} catch (Throwable t) {
-					t.printStackTrace(); //Explicitly print the stack trace here as Mojang like to eat them in ModelBakery
-					throw new RuntimeException("Error creating ModelDefinition for " + models, t);
-				}
-			};
-		} catch (ReflectiveOperationException e) {
-			throw new RuntimeException("Error creating ModelDefinition cloner", e);
-		}
-	});
 
 	@Redirect(method = "processLoading",
 				at = @At(value = "NEW", target = "(Lnet/minecraft/util/ResourceLocation;Ljava/lang/String;)Lnet/minecraft/client/renderer/model/ModelResourceLocation;"),
@@ -116,14 +89,14 @@ class ModelBakeryMixin {
 	}
 
 	@ModifyVariable(method = "lambda$loadBlockstate$25", at = @At(value = "INVOKE", target = "Lcom/mojang/datafixers/util/Pair;getFirst()Ljava/lang/Object;", shift = Shift.BY, by = -2, remap = false), ordinal = 1)
-	private Pair<IUnbakedModel, Supplier<?>> wrapMultipartModels(Pair<IUnbakedModel, Supplier<?>> variant, Map<BlockState, Pair<IUnbakedModel, Supplier<?>>> stateToModel, ResourceLocation blockModel, 
-			Pair<IUnbakedModel, Supplier<?>> missingModel, HashMap<?, Set<BlockState>> wrappedModelToState, ModelResourceLocation stateModel, BlockState state) {
+	private Pair<IUnbakedModel, Supplier<ModelListWrapper>> wrapMultipartModels(Pair<IUnbakedModel, Supplier<ModelListWrapper>> variant, Map<BlockState, Pair<IUnbakedModel, Supplier<ModelListWrapper>>> stateToModel, 
+			ResourceLocation blockModel, Pair<IUnbakedModel, Supplier<ModelListWrapper>> missingModel, HashMap<?, Set<BlockState>> wrappedModelToState, ModelResourceLocation stateModel, BlockState state) {
 		IUnbakedModel model = variant.getFirst();
 		if (!(model instanceof Multipart)) return variant;
 
 		//System.out.println("Multipart for " + stateModel);
 		IUnbakedModel resolvedModel = ResolvedMultipart.create((Multipart) model, state);
 
-		return Pair.of(resolvedModel, () -> MODEL_DEFINITION_CLONER.apply(variant.getSecond().get(), Collections.singletonList(resolvedModel)));
+		return Pair.of(resolvedModel, () -> new ModelListWrapper(Collections.singletonList(resolvedModel), ((ModelListWrapperAccess) variant.getSecond().get()).getColorValues()));
 	}
 }

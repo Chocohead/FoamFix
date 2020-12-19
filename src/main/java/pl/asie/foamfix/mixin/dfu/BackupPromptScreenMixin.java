@@ -27,8 +27,6 @@
  */
 package pl.asie.foamfix.mixin.dfu;
 
-import java.util.List;
-
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
@@ -38,6 +36,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import net.minecraft.client.gui.DialogTexts;
+import net.minecraft.client.gui.IBidiRenderer;
 import net.minecraft.client.gui.screen.ConfirmBackupScreen;
 import net.minecraft.client.gui.screen.ConfirmBackupScreen.ICallback;
 import net.minecraft.client.gui.screen.Screen;
@@ -54,9 +54,7 @@ abstract class BackupPromptScreenMixin extends Screen {
 	@Mutable
 	private @Final ITextComponent message;
 	@Shadow
-	private @Final List<String> wrappedMessage;
-	@Shadow
-	private @Final String cancelText;
+	private IBidiRenderer field_243275_q;
 	@Unique
 	private boolean isBad;
 
@@ -79,11 +77,10 @@ abstract class BackupPromptScreenMixin extends Screen {
 	@Inject(method = "init", at = @At("HEAD"), cancellable = true)
 	private void badInit(CallbackInfo info) {
 		if (isBad) {
-			wrappedMessage.clear();
-			wrappedMessage.addAll(font.listFormattedStringToWidth(message.getFormattedText(), width - 50));
+			field_243275_q = IBidiRenderer.func_243258_a(font, message, width - 50);
 
-			int messageHeight = (wrappedMessage.size() + 1) * 9;
-			addButton(new Button(width / 2 - 155 + 80, 124 + messageHeight, 150, 20, cancelText, (buttonWidget) -> {
+			int messageHeight = (field_243275_q.func_241862_a() + 1) * 9;
+			addButton(new Button(width / 2 - 155 + 80, 124 + messageHeight, 150, 20, DialogTexts.GUI_CANCEL, (buttonWidget) -> {
 				minecraft.displayGuiScreen(parentScreen);
 			}));
 

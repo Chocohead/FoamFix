@@ -43,14 +43,13 @@ import net.minecraft.client.renderer.model.BlockModel.GuiLight;
 import net.minecraft.client.renderer.model.BlockPart;
 import net.minecraft.client.renderer.model.ItemCameraTransforms;
 import net.minecraft.client.renderer.model.ItemOverride;
-import net.minecraft.client.renderer.model.Material;
+import net.minecraft.client.renderer.model.RenderMaterial;
 import net.minecraft.util.ResourceLocation;
 
 @Mixin(BlockModel.class)
-@SuppressWarnings("deprecation")
 abstract class JsonUnbakedModelMixin {
 	@Inject(method = "<init>", at = @At("RETURN"))
-	private void shrink(ResourceLocation parentId, List<BlockPart> elements, Map<String, Either<Material, String>> textureMap, boolean ambientOcclusion,
+	private void shrink(ResourceLocation parentId, List<BlockPart> elements, Map<String, Either<RenderMaterial, String>> textureMap, boolean ambientOcclusion,
 						GuiLight guiLight, ItemCameraTransforms transformations, List<ItemOverride> overrides, CallbackInfo info) {
 		if (elements instanceof ArrayList) {
 			((ArrayList<?>) elements).trimToSize();

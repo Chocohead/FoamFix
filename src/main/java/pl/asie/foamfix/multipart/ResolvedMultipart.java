@@ -37,10 +37,11 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import com.mojang.datafixers.util.Pair;
-
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenCustomHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrays;
+
+import com.mojang.blaze3d.matrix.MatrixStack;
+import com.mojang.datafixers.util.Pair;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -48,10 +49,12 @@ import net.minecraft.client.renderer.model.BakedQuad;
 import net.minecraft.client.renderer.model.IBakedModel;
 import net.minecraft.client.renderer.model.IModelTransform;
 import net.minecraft.client.renderer.model.IUnbakedModel;
+import net.minecraft.client.renderer.model.ItemCameraTransforms;
 import net.minecraft.client.renderer.model.ItemOverrideList;
-import net.minecraft.client.renderer.model.Material;
 import net.minecraft.client.renderer.model.ModelBakery;
+import net.minecraft.client.renderer.model.RenderMaterial;
 import net.minecraft.client.renderer.model.VariantList;
+import net.minecraft.client.renderer.model.ItemCameraTransforms.TransformType;
 import net.minecraft.client.renderer.model.multipart.Multipart;
 import net.minecraft.client.renderer.model.multipart.Selector;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -60,6 +63,7 @@ import net.minecraft.util.Direction;
 import net.minecraft.util.ResourceLocation;
 
 import net.minecraftforge.client.model.data.EmptyModelData;
+import net.minecraftforge.client.model.data.IDynamicBakedModel;
 import net.minecraftforge.client.model.data.IModelData;
 
 import pl.asie.foamfix.FoamyCacherCleanser;
@@ -102,25 +106,20 @@ public class ResolvedMultipart implements IUnbakedModel {
 	}
 
 	@Override
-	public Collection<Material> getTextures(Function<ResourceLocation, IUnbakedModel> modelGetter, Set<Pair<String, String>> missingTextureErrors) {
+	public Collection<RenderMaterial> getTextures(Function<ResourceLocation, IUnbakedModel> modelGetter, Set<Pair<String, String>> missingTextureErrors) {
 		return Arrays.stream(variants).flatMap(variant -> variant.getTextures(modelGetter, missingTextureErrors).stream()).collect(Collectors.toSet());
 	}
 
 	@Override
-	public IBakedModel bakeModel(ModelBakery modelBakery, Function<Material, TextureAtlasSprite> spriteGetter, IModelTransform transform, ResourceLocation location) {
+	public IBakedModel bakeModel(ModelBakery modelBakery, Function<RenderMaterial, TextureAtlasSprite> spriteGetter, IModelTransform transform, ResourceLocation location) {
 		return new ResolvedMultipartModel(Arrays.stream(variants).map(variant -> variant.bakeModel(modelBakery, spriteGetter, transform, location)).filter(Objects::nonNull).toArray(IBakedModel[]::new));
 	}
 
-	private static class ResolvedMultipartModel implements IBakedModel {
+	private static class ResolvedMultipartModel implements IDynamicBakedModel {
 		private final IBakedModel[] models;
 
 		ResolvedMultipartModel(IBakedModel[] models) {
 			this.models = models;
-		}
-
-		@Override
-		public List<BakedQuad> getQuads(BlockState state, Direction side, Random rand) {
-			return getQuads(state, side, rand, EmptyModelData.INSTANCE);
 		}
 
 		@Override
@@ -140,13 +139,18 @@ public class ResolvedMultipart implements IUnbakedModel {
 		}
 
 		@Override
+		public boolean isAmbientOcclusion(BlockState state) {
+			return models[0].isAmbientOcclusion(state);
+		}
+
+		@Override
 		public boolean isGui3d() {
 			return models[0].isGui3d();
 		}
 
 		@Override
-		public boolean func_230044_c_() {
-			return models[0].func_230044_c_();
+		public boolean isSideLit() {
+			return models[0].isSideLit();
 		}
 
 		@Override
@@ -162,6 +166,22 @@ public class ResolvedMultipart implements IUnbakedModel {
 		@Override
 		public TextureAtlasSprite getParticleTexture(IModelData data) {
 			return models[0].getParticleTexture(data);
+		}
+
+		@Override
+		@Deprecated
+		public ItemCameraTransforms getItemCameraTransforms() {
+			return models[0].getItemCameraTransforms();
+		}
+
+		@Override
+		public boolean doesHandlePerspectives() {
+			return models[0].doesHandlePerspectives();
+		}
+
+		@Override
+		public IBakedModel handlePerspective(TransformType cameraTransformType, MatrixStack matices) {
+			return models[0].handlePerspective(cameraTransformType, matices);
 		}
 
 		@Override

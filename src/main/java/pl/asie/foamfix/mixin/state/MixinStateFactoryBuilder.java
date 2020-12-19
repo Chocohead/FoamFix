@@ -29,6 +29,7 @@
 package pl.asie.foamfix.mixin.state;
 
 import java.util.Map;
+import java.util.function.Function;
 
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -37,8 +38,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import net.minecraft.state.IProperty;
-import net.minecraft.state.IStateHolder;
+import net.minecraft.state.Property;
 import net.minecraft.state.StateContainer;
 import net.minecraft.state.StateContainer.IFactory;
 import net.minecraft.state.StateHolder;
@@ -46,16 +46,16 @@ import net.minecraft.state.StateHolder;
 import pl.asie.foamfix.state.FoamyStateFactory;
 
 @Mixin(StateContainer.Builder.class)
-public class MixinStateFactoryBuilder<O, S extends IStateHolder<S>> {
+public class MixinStateFactoryBuilder<O, S extends StateHolder<O, S>> {
 	@Shadow
 	private @Final O owner;
 	@Shadow
-	private @Final Map<String, IProperty<?>> properties;
+	private @Final Map<String, Property<?>> properties;
 
-	@Inject(at = @At("HEAD"), method = "create", cancellable = true)
-	public <A extends StateHolder<O, S>> void beforeBuild(IFactory<O, S, A> factory, CallbackInfoReturnable<StateContainer<O, S>> info) {
+	@Inject(at = @At("HEAD"), method = "func_235882_a_", cancellable = true)
+	public void beforeBuild(Function<O, S> ownerToStateFunction, IFactory<O, S> factory, CallbackInfoReturnable<StateContainer<O, S>> info) {
 		if (FoamyStateFactory.hasFactory(owner)) {
-			info.setReturnValue(new FoamyStateFactory<>(owner, factory, properties));
+			info.setReturnValue(new FoamyStateFactory<>(ownerToStateFunction, owner, factory, properties));
 		}
 	}
 }

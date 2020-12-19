@@ -12,7 +12,6 @@
     "client.MixinBasicBakedModel",
     "client.MixinMultipartBakedModel",
     "client.MixinWeightedBakedModel",
-    "client.TrsrBakedModelMixin",
     "client.ItemModelMesherForgeAccess",
     "client.ModelBakeryMixin",
     "client.SimpleMultipartModelSelectorMixin",

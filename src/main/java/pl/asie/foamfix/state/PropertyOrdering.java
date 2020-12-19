@@ -18,27 +18,24 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 
 import net.minecraft.state.BooleanProperty;
 import net.minecraft.state.EnumProperty;
-import net.minecraft.state.IProperty;
 import net.minecraft.state.IntegerProperty;
+import net.minecraft.state.Property;
 import net.minecraft.util.Util;
 import net.minecraft.util.math.MathHelper;
 
 public class PropertyOrdering {
 	public static abstract class Entry {
-		final IProperty<?> property;
+		final Property<?> property;
 		final int bitSize;
 		final int bits;
 
-		private Entry(IProperty<?> property) {
+		private Entry(Property<?> property) {
 			this.property = property;
-
 			this.bitSize = MathHelper.smallestEncompassingPowerOfTwo(property.getAllowedValues().size());
-			int bits = 0;
 
-			int b = bitSize - 1;
-			while (b != 0) {
+			int bits = 0;
+			for (int b = bitSize - 1; b != 0; b >>= 1) {
 				bits++;
-				b >>= 1;
 			}
 			this.bits = bits;
 		}
@@ -60,7 +57,7 @@ public class PropertyOrdering {
 	}
 
 	public static class BooleanEntry extends Entry {
-		private BooleanEntry(IProperty<?> property) {
+		private BooleanEntry(Property<?> property) {
 			super(property);
 		}
 
@@ -73,7 +70,7 @@ public class PropertyOrdering {
 	public static class ObjectEntry extends Entry {
 		private final Object2IntMap<Object> values;
 
-		private ObjectEntry(IProperty<?> property, boolean identity) {
+		private ObjectEntry(Property<?> property, boolean identity) {
 			super(property);
 
 			Object2IntMap<Object> values;
@@ -106,7 +103,7 @@ public class PropertyOrdering {
 	}
 
 	public static class EnumEntrySorted extends Entry {
-		private EnumEntrySorted(IProperty<?> property, int count) {
+		private EnumEntrySorted(Property<?> property, int count) {
 			super(property);
 		}
 
@@ -129,7 +126,7 @@ public class PropertyOrdering {
 	public static class IntegerEntrySorted extends Entry {
 		private final int minValue, count;
 
-		private IntegerEntrySorted(IProperty<?> property, int minValue, int count) {
+		private IntegerEntrySorted(Property<?> property, int minValue, int count) {
 			super(property);
 
 			this.minValue = minValue;
@@ -147,7 +144,7 @@ public class PropertyOrdering {
 	public static class IntegerEntry extends Entry {
 		private final Int2IntMap values;
 
-		private IntegerEntry(IProperty<?> property) {
+		private IntegerEntry(Property<?> property) {
 			super(property);
 
 			Int2IntOpenHashMap values = new Int2IntOpenHashMap();
@@ -188,9 +185,9 @@ public class PropertyOrdering {
 
 	}
 
-	private static final Map<IProperty<?>, Entry> entryMap = new IdentityHashMap<>();
+	private static final Map<Property<?>, Entry> entryMap = new IdentityHashMap<>();
 
-	static Entry getEntry(IProperty<?> property) {
+	static Entry getEntry(Property<?> property) {
 		Entry e = entryMap.get(property);
 		if (e == null) {
 			if (property instanceof IntegerProperty) {

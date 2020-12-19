@@ -32,22 +32,23 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.mojang.serialization.MapCodec;
+
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
-import net.minecraft.state.IProperty;
+import net.minecraft.state.Property;
 
 public class FoamyBlockStateEmpty extends BlockState {
-	public FoamyBlockStateEmpty(Block blockIn) {
-		super(blockIn, ImmutableMap.of());
+	public FoamyBlockStateEmpty(Block block, MapCodec<BlockState> codec) {
+		super(block, ImmutableMap.of(), codec);
 	}
 
 	@Override
-	public <T extends Comparable<T>, V extends T> BlockState with(IProperty<T> property, V value) {
+	public <T extends Comparable<T>, V extends T> BlockState with(Property<T> property, V value) {
 		throw new IllegalArgumentException("Cannot set property " + property + " as it does not exist in " + this.getBlock());
 	}
 
 	@Override
-	public void buildPropertyValueTable(Map<Map<IProperty<?>, Comparable<?>>, BlockState> map_1) {
-
+	public void func_235899_a_(Map<Map<Property<?>, Comparable<?>>, BlockState> states) {
 	}
 }

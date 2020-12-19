@@ -59,15 +59,18 @@ import net.minecraft.client.renderer.model.IBakedModel;
 import net.minecraft.client.renderer.model.MultipartBakedModel;
 import net.minecraft.util.Direction;
 
+import net.minecraftforge.client.model.data.IDynamicBakedModel;
+import net.minecraftforge.client.model.data.IModelData;
+
 import pl.asie.foamfix.multipart.FoamyAnyPredicate;
 
 @Mixin(MultipartBakedModel.class)
-abstract class MixinMultipartBakedModel implements IBakedModel {
+abstract class MixinMultipartBakedModel implements IDynamicBakedModel {
 	@Shadow
 	@Mutable //We're only changing it once in it's own constructor call but Mixin insists it is a good idea anyway
 	private @Final List<Pair<Predicate<BlockState>, IBakedModel>> selectors;
 	@Shadow
-	private @Final Map<BlockState, BitSet> field_210277_g;
+	private @Final Map<BlockState, BitSet> bitSetCache;
 	@Unique
 	private @Final Predicate<BlockState>[] componentTests;
 	@Unique
@@ -107,11 +110,10 @@ abstract class MixinMultipartBakedModel implements IBakedModel {
 	 * @reason Use direct arrays over a list of pairs
 	 */
 	@Override
-	@Overwrite
-	@SuppressWarnings("deprecation")
-	public List<BakedQuad> getQuads(BlockState state, Direction side, Random rand) {
+	@Overwrite(remap = false) //Forge extension
+	public List<BakedQuad> getQuads(BlockState state, Direction side, Random rand, IModelData extraData) {
 		if (state != null) {
-			BitSet activeParts = field_210277_g.get(state);
+			BitSet activeParts = bitSetCache.get(state);
 			if (activeParts == null) {
 				activeParts = new BitSet();
 
@@ -121,7 +123,7 @@ abstract class MixinMultipartBakedModel implements IBakedModel {
 					}
 				}
 
-				field_210277_g.put(state, activeParts);
+				bitSetCache.put(state, activeParts);
 			}
 
 			if (!activeParts.isEmpty()) {
@@ -132,7 +134,7 @@ abstract class MixinMultipartBakedModel implements IBakedModel {
 
 				for (int i = activeParts.nextSetBit(0); i >= 0; i = activeParts.nextSetBit(i + 1)) {
 					componentRand.setSeed(seed);
-					quads.addAll(componentModels[i].getQuads(state, side, componentRand));
+					quads.addAll(componentModels[i].getQuads(state, side, componentRand, extraData));
 				}
 
 				return quads;

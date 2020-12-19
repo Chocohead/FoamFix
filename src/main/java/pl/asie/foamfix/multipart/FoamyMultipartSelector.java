@@ -33,7 +33,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import net.minecraft.block.BlockState;
-import net.minecraft.state.IProperty;
+import net.minecraft.state.Property;
 
 import pl.asie.foamfix.FoamyCacherCleanser;
 
@@ -43,19 +43,19 @@ public class FoamyMultipartSelector implements Predicate<BlockState> {
 		FoamyCacherCleanser.addCleaner(CACHE::clear); //Once the instances are all made there is no need to remember them
 	}
 
-	public static FoamyMultipartSelector create(IProperty<?> property, Object value) {
+	public static FoamyMultipartSelector create(Property<?> property, Object value) {
 		return CACHE.computeIfAbsent(new FoamyMultipartSelector(property, value), Function.identity());
 	}
 
-	private final IProperty<?> property;
+	private final Property<?> property;
 	private final Object value;
 	private final boolean positive;
 
-	private FoamyMultipartSelector(IProperty<?> property, Object value) {
+	private FoamyMultipartSelector(Property<?> property, Object value) {
 		this(property, value, true);
 	}
 
-	private FoamyMultipartSelector(IProperty<?> property, Object value, boolean positive) {
+	private FoamyMultipartSelector(Property<?> property, Object value, boolean positive) {
 		this.property = property;
 		this.value = value;
 		this.positive = positive;
