@@ -30,69 +30,54 @@ package pl.asie.foamfix.state;
 
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.List;
 
-import com.google.common.collect.Lists;
-
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import it.unimi.dsi.fastutil.objects.Object2IntMaps;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Reference2IntLinkedOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Reference2IntSortedMap;
+import it.unimi.dsi.fastutil.objects.Reference2IntSortedMaps;
 
 import net.minecraft.state.Property;
 import net.minecraft.state.StateHolder;
 
+import pl.asie.foamfix.state.PropertyOrdering.Entry;
+
 public class PropertyValueMapperImpl<C extends StateHolder<?, C>> implements PropertyValueMapper<C> {
-	private static final Comparator<? super Property<?>> COMPARATOR_BIT_FITNESS = (Comparator<Property<?>>) (first, second) -> {
-		int diff1 = PropertyOrdering.getEntry(first).bitSize - first.getAllowedValues().size();
-		int diff2 = PropertyOrdering.getEntry(second).bitSize - second.getAllowedValues().size();
+	private static final Comparator<? super Entry> COMPARATOR_BIT_FITNESS = (Entry first, Entry second) -> {
+		int diff1 = first.bitSize - first.property.getAllowedValues().size();
+		int diff2 = second.bitSize - second.property.getAllowedValues().size();
 		// We want to put properties with higher diff-values last,
 		// so that the array is as small as possible.
 		if (diff1 == diff2) {
-			return first.getName().compareTo(second.getName());
+			return first.property.getName().compareTo(second.property.getName());
 		} else {
 			return diff1 - diff2;
 		}
 	};
 
-	private final PropertyOrdering.Entry[] entryList;
-	private final Object2IntMap<Property<?>> entryPositionMap;
+	private final Reference2IntSortedMap<Entry> entryPositionMap;
 	private final C[] stateMap;
 
 	@SuppressWarnings("unchecked") //Close enough given the bounds of C
 	public PropertyValueMapperImpl(Collection<Property<?>> properties) {
-		entryList = new PropertyOrdering.Entry[properties.size()];
-		List<Property<?>> propertiesSortedFitness = Lists.newArrayList(properties);
-		propertiesSortedFitness.sort(COMPARATOR_BIT_FITNESS);
-		int i = 0;
-		for (Property<?> p : propertiesSortedFitness) {
-			entryList[i++] = PropertyOrdering.getEntry(p);
-		}
-
-		Object2IntOpenHashMap<Property<?>> entryPositionMap = new Object2IntOpenHashMap<>(properties.size());
+		Reference2IntLinkedOpenHashMap<Entry> entryPositionMap = new Reference2IntLinkedOpenHashMap<>(properties.size(), 1);
 		entryPositionMap.defaultReturnValue(-1);
 
 		int bitPos = 0;
-		PropertyOrdering.Entry lastEntry = null;
-		for (PropertyOrdering.Entry ee : entryList) {
-			entryPositionMap.put(ee.property, bitPos);
+		for (Entry ee : (Iterable<Entry>) properties.stream().map(PropertyOrdering::getEntry).sorted(COMPARATOR_BIT_FITNESS)::iterator) {
+			entryPositionMap.put(ee, bitPos);
 			bitPos += ee.bits;
-			lastEntry = ee;
 		}
 
 		entryPositionMap.trim();
-		this.entryPositionMap = Object2IntMaps.unmodifiable(entryPositionMap);
+		this.entryPositionMap = Reference2IntSortedMaps.unmodifiable(entryPositionMap);
 
-		if (lastEntry == null) {
-			stateMap = (C[]) new StateHolder[1 << bitPos];
-		} else {
-			stateMap = (C[]) new StateHolder[(1 << (bitPos - lastEntry.bits)) * lastEntry.property.getAllowedValues().size()];
-		}
+		Entry lastEntry = entryPositionMap.lastKey();
+		stateMap = (C[]) new StateHolder[(1 << (bitPos - lastEntry.bits)) * lastEntry.property.getAllowedValues().size()];
 	}
 
 	public int generateValue(C state) {
 		int bitPos = 0;
 		int value = 0;
-		for (PropertyOrdering.Entry e : entryList) {
+		for (Entry e : entryPositionMap.keySet()) {
 			value |= e.get(state.get(e.property)) << bitPos;
 			bitPos += e.bits;
 		}
@@ -102,9 +87,10 @@ public class PropertyValueMapperImpl<C extends StateHolder<?, C>> implements Pro
 	}
 
 	public <T extends Comparable<T>, V extends T> C with(int value, Property<T> property, V propertyValue) {
-		int bitPos = entryPositionMap.getInt(property);
+		Entry e = PropertyOrdering.getEntry(property);
+
+		int bitPos = entryPositionMap.getInt(e);
 		if (bitPos >= 0) {
-			PropertyOrdering.Entry e = PropertyOrdering.getEntry(property);
 			int nv = e.get(propertyValue);
 			if (nv < 0) return null;
 
@@ -122,9 +108,10 @@ public class PropertyValueMapperImpl<C extends StateHolder<?, C>> implements Pro
 	}
 
 	public <T extends Comparable<T>, V extends T> int withValue(int value, Property<T> property, V propertyValue) {
-		int bitPos = entryPositionMap.getInt(property);
+		Entry e = PropertyOrdering.getEntry(property);
+
+		int bitPos = entryPositionMap.getInt(e);
 		if (bitPos >= 0) {
-			PropertyOrdering.Entry e = PropertyOrdering.getEntry(property);
 			int nv = e.get(propertyValue);
 			if (nv < 0) return -1;
 
@@ -136,5 +123,4 @@ public class PropertyValueMapperImpl<C extends StateHolder<?, C>> implements Pro
 
 		return -1;
 	}
-
 }
