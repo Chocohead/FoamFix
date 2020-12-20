@@ -55,7 +55,7 @@ public class PropertyValueMapperImpl<C extends StateHolder<?, C>> implements Pro
 	};
 
 	private final PropertyOrdering.Entry[] entryList;
-	private final Object2IntMap<String> entryPositionMap;
+	private final Object2IntMap<Property<?>> entryPositionMap;
 	private final C[] stateMap;
 
 	@SuppressWarnings("unchecked") //Close enough given the bounds of C
@@ -68,13 +68,13 @@ public class PropertyValueMapperImpl<C extends StateHolder<?, C>> implements Pro
 			entryList[i++] = PropertyOrdering.getEntry(p);
 		}
 
-		Object2IntOpenHashMap<String> entryPositionMap = new Object2IntOpenHashMap<>(properties.size());
+		Object2IntOpenHashMap<Property<?>> entryPositionMap = new Object2IntOpenHashMap<>(properties.size());
 		entryPositionMap.defaultReturnValue(-1);
 
 		int bitPos = 0;
 		PropertyOrdering.Entry lastEntry = null;
 		for (PropertyOrdering.Entry ee : entryList) {
-			entryPositionMap.put(ee.property.getName(), bitPos);
+			entryPositionMap.put(ee.property, bitPos);
 			bitPos += ee.bits;
 			lastEntry = ee;
 		}
@@ -102,7 +102,7 @@ public class PropertyValueMapperImpl<C extends StateHolder<?, C>> implements Pro
 	}
 
 	public <T extends Comparable<T>, V extends T> C with(int value, Property<T> property, V propertyValue) {
-		int bitPos = entryPositionMap.getInt(property.getName());
+		int bitPos = entryPositionMap.getInt(property);
 		if (bitPos >= 0) {
 			PropertyOrdering.Entry e = PropertyOrdering.getEntry(property);
 			int nv = e.get(propertyValue);
@@ -122,7 +122,7 @@ public class PropertyValueMapperImpl<C extends StateHolder<?, C>> implements Pro
 	}
 
 	public <T extends Comparable<T>, V extends T> int withValue(int value, Property<T> property, V propertyValue) {
-		int bitPos = entryPositionMap.getInt(property.getName());
+		int bitPos = entryPositionMap.getInt(property);
 		if (bitPos >= 0) {
 			PropertyOrdering.Entry e = PropertyOrdering.getEntry(property);
 			int nv = e.get(propertyValue);
