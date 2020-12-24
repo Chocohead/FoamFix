@@ -1,7 +1,7 @@
 {
   "required": true,
   "package": "pl.asie.foamfix.mixin",
-  "refmap": "mixins.foamfix.refmap.json",
+  "refmap": "foamfix.mixins-refmap.json",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
     "state.MixinStateFactoryBuilder",
