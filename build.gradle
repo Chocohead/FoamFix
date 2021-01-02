@@ -25,7 +25,7 @@ tasks.withType(JavaCompile) {
 
 def modID = "foamfix"
 archivesBaseName = "$modID-Forge"
-version = '0.14.1'
+version = '0.14.2'
 
 minecraft {
 	mappings channel: 'snapshot', version: '20201028-1.16.3'

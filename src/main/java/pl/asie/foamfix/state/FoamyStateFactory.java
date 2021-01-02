@@ -35,6 +35,8 @@ import java.util.function.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+
 import com.mojang.serialization.MapCodec;
 
 import net.minecraft.block.Block;
@@ -43,9 +45,27 @@ import net.minecraft.state.Property;
 import net.minecraft.state.StateContainer;
 import net.minecraft.state.StateHolder;
 
+import pl.asie.foamfix.FoamyCacherCleanser;
+import pl.asie.foamfix.Util;
+
 public class FoamyStateFactory<O, S extends StateHolder<O, S>> extends StateContainer<O, S> {
+	private static final Map<ImmutableMap<Property<?>, Comparable<?>>, ImmutableMap<Property<?>, Comparable<?>>> CACHE = new Object2ObjectOpenHashMap<>();
+	static {
+		FoamyCacherCleanser.addCleaner(() -> {
+			CACHE.clear();
+			((Object2ObjectOpenHashMap<?, ?>) CACHE).trim();
+		});
+	}
+
 	public FoamyStateFactory(Function<O, S> ownerToState, O baseObject, IFactory<O, S> factory, Map<String, Property<?>> map) {
-		super(ownerToState, baseObject, getFactory(baseObject, factory), map);
+		super(ownerToState, baseObject, wrapFactory(getFactory(baseObject, factory)), map);
+	}
+
+	private static <O, S extends StateHolder<O, S>> IFactory<O, S> wrapFactory(IFactory<O, S> factory) {
+		return (owner, properties, codec) -> {
+			//This can and will be called concurrently which can make for strange crashes rehashing
+			return factory.create(owner, Util.syncIfAbsent(CACHE, properties, Function.identity()), codec);
+		};
 	}
 
 	public static boolean hasFactory(Object baseObject) {

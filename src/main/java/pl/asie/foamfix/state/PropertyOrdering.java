@@ -1,27 +1,25 @@
 package pl.asie.foamfix.state;
 
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
-import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Map;
-
-import com.google.common.collect.Lists;
 
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntMaps;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntIterators;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMaps;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenCustomHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ReferenceOpenHashMap;
 
 import net.minecraft.state.BooleanProperty;
 import net.minecraft.state.EnumProperty;
 import net.minecraft.state.IntegerProperty;
 import net.minecraft.state.Property;
-import net.minecraft.util.Util;
 import net.minecraft.util.math.MathHelper;
+
+import pl.asie.foamfix.Util;
 
 public class PropertyOrdering {
 	public static abstract class Entry {
@@ -63,36 +61,26 @@ public class PropertyOrdering {
 
 		@Override
 		public int get(Object v) {
-			return v == Boolean.TRUE ? 1 : 0;
+			return v == Boolean.TRUE ? 1 : v == Boolean.FALSE ? 0 : -1;
 		}
 	}
 
 	public static class ObjectEntry extends Entry {
 		private final Object2IntMap<Object> values;
 
-		private ObjectEntry(Property<?> property, boolean identity) {
+		private ObjectEntry(Property<?> property) {
 			super(property);
 
-			Object2IntMap<Object> values;
-			Runnable trimmer;
-			if (identity) {
-				Object2IntOpenCustomHashMap<Object> map = new Object2IntOpenCustomHashMap<>(Util.identityHashStrategy());
-				trimmer = map::trim; //Why couldn't trim have some common parent between normal and custom open maps?
-				values = map;
-			} else {
-				Object2IntOpenHashMap<Object> map = new Object2IntOpenHashMap<>();
-				trimmer = map::trim;
-				values = map;
-			}
+			Object2IntOpenHashMap<Object> values = new Object2IntOpenHashMap<>();
 			values.defaultReturnValue(-1);
-			
+
 			Collection<?> allowedValues = property.getAllowedValues();
 			int i = 0;
 			for (Object o : allowedValues) {
 				values.put(o, i++);
 			}
 
-			trimmer.run();
+			values.trim();
 			this.values = Object2IntMaps.unmodifiable(values);
 		}
 
@@ -109,24 +97,50 @@ public class PropertyOrdering {
 
 		@Override
 		public int get(Object v) {
-			return ((Enum<?>) v).ordinal();
+			return v instanceof Enum && ((Enum<?>) v).getDeclaringClass() == property.getValueClass() ? ((Enum<?>) v).ordinal() : -1;
 		}
 
-		public static Entry create(EnumProperty<?> entry) {
-			Object[] values = entry.getValueClass().getEnumConstants();
+		public static Entry create(EnumProperty<?> property) {
+			Object[] values = property.getValueClass().getEnumConstants();
 
-			if (entry.getAllowedValues().size() == values.length) {
-				return new EnumEntrySorted(entry, values.length);
-			} else {
-				return new ObjectEntry(entry, true);
+			if (property.getAllowedValues().size() == values.length) {
+				return new EnumEntrySorted(property, values.length);
 			}
+
+			Enum<?>[] sorted = property.getAllowedValues().stream().sorted().toArray(Enum[]::new);
+			if (sorted[sorted.length - 1].ordinal() - sorted[0].ordinal() == sorted.length + 1) {
+				return new IntegerEntrySorted(property, sorted[0].ordinal(), sorted.length) {
+					@Override
+					public int get(Object v) {
+						return v instanceof Enum && ((Enum<?>) v).getDeclaringClass() == property.getValueClass() ? map(((Enum<?>) v).ordinal()) : -1;
+					}
+				};
+			}
+
+			Int2IntOpenHashMap map = new Int2IntOpenHashMap();
+			map.defaultReturnValue(-1);
+
+			int i = 0;
+			for (Enum<?> entry : sorted) {
+				if (map.put(entry.ordinal(), i++) != -1) {
+					throw new IllegalStateException("EnumProperty has duplicated elements: " + entry + ", " + Arrays.toString(sorted));
+				};
+			}
+
+			map.trim();
+			return new IntegerEntry(property, map) {
+				@Override
+				public int get(Object v) {
+					return v instanceof Enum && ((Enum<?>) v).getDeclaringClass() == property.getValueClass() ? map(((Enum<?>) v).ordinal()) : -1;
+				}
+			};
 		}
 	}
 
 	public static class IntegerEntrySorted extends Entry {
 		private final int minValue, count;
 
-		private IntegerEntrySorted(Property<?> property, int minValue, int count) {
+		IntegerEntrySorted(Property<?> property, int minValue, int count) {
 			super(property);
 
 			this.minValue = minValue;
@@ -135,7 +149,11 @@ public class PropertyOrdering {
 
 		@Override
 		public int get(Object v) {
-			int vv = ((int) v) - minValue;
+			return v instanceof Integer ? map((Integer) v) : -1;
+		}
+
+		protected final int map(int value) {
+			int vv = value - minValue;
 			// if vv < 0, it will be rejected anyway
 			return vv < count ? vv : -1;
 		}
@@ -153,31 +171,40 @@ public class PropertyOrdering {
 			Collection<?> allowedValues = property.getAllowedValues();
 			int i = 0;
 			for (Object o : allowedValues) {
-				values.put((int) o, i++);
+				if (values.put((int) o, i++) != -1) {
+					throw new IllegalStateException("IntegerProperty has duplicated elements: " + property + ", " + allowedValues);
+				};
 			}
 
 			values.trim();
 			this.values = Int2IntMaps.unmodifiable(values);
 		}
 
+		IntegerEntry(Property<?> property, Int2IntMap values) {
+			super(property);
+
+			this.values = Int2IntMaps.unmodifiable(values);
+		}
+
 		@Override
-		@SuppressWarnings("deprecation") //It would be nice to not have to box this
 		public int get(Object v) {
-			return values.get(v);
+			return v instanceof Integer ? map((Integer) v) : -1;
+		}
+
+		protected final int map(int value) {
+			return values.get(value);
 		}
 
 		public static Entry create(IntegerProperty entry) {
-			List<Integer> sorted = Lists.newArrayList(entry.getAllowedValues());
-			sorted.sort(Comparator.naturalOrder());
+			int[] sorted = IntIterators.unwrap(IntIterators.asIntIterator(entry.getAllowedValues().iterator()));
+			Arrays.sort(sorted);
 
-			int min = sorted.get(0);
-			for (int i = 1; i < sorted.size(); i++) {
-				if ((sorted.get(i) - sorted.get(i - 1)) != 1) {
-					return new IntegerEntry(entry);
-				}
+			int min = sorted[0];
+			if (sorted[sorted.length - 1] - min == sorted.length + 1) {
+				return new IntegerEntrySorted(entry, min, sorted.length);
 			}
 
-			return new IntegerEntrySorted(entry, min, sorted.size());
+			return new IntegerEntry(entry);
 		}
 	}
 
@@ -185,21 +212,22 @@ public class PropertyOrdering {
 
 	}
 
-	private static final Map<Property<?>, Entry> entryMap = new IdentityHashMap<>();
+	private static final Map<Property<?>, Entry> entryMap = new Object2ReferenceOpenHashMap<>();
 
 	static Entry getEntry(Property<?> property) {
 		Entry e = entryMap.get(property);
 		if (e == null) {
-			if (property instanceof IntegerProperty) {
-				e = IntegerEntry.create((IntegerProperty) property);
-			} else if (property.getClass() == BooleanProperty.class && property.getAllowedValues().size() == 2) {
-				e = new BooleanEntry(property);
-			} else if (property instanceof EnumProperty) {
-				e = EnumEntrySorted.create((EnumProperty<?>) property);
-			} else {
-				e = new ObjectEntry(property, false);
-			}
-			entryMap.put(property, e);
+			e = Util.syncIfAbsent(entryMap, property, key -> {
+				if (key instanceof IntegerProperty) {
+					return IntegerEntry.create((IntegerProperty) key);
+				} else if (key.getClass() == BooleanProperty.class && key.getAllowedValues().size() == 2) {
+					return new BooleanEntry(key);
+				} else if (key instanceof EnumProperty) {
+					return EnumEntrySorted.create((EnumProperty<?>) key);
+				} else {
+					return new ObjectEntry(key);
+				}
+			});
 		}
 		return e;
 	}

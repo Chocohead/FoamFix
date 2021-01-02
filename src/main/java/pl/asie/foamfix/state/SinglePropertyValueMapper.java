@@ -25,7 +25,7 @@ public class SinglePropertyValueMapper<C extends StateHolder<?, C>> implements P
 	@Override
 	public <T extends Comparable<T>, V extends T> C with(int existingValue, Property<T> property, V propertyValue) {
 		//We've only got one property so the given one should be the same
-		if (this.property.property != property) return null;
+		if (!this.property.property.equals(property)) return null;
 
 		int value = this.property.get(propertyValue);
 		if (value < 0) return null;
