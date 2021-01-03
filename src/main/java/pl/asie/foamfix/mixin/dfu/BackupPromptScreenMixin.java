@@ -70,7 +70,8 @@ abstract class BackupPromptScreenMixin extends Screen {
 			Object[] args = ((TranslationTextComponent) subtitle).getFormatArgs();
 			String oldVersion = (String) args[0];
 			String thisVersion = (String) args[1];
-			this.message = new StringTextComponent("This world was last played in version " + oldVersion + "; you are now on version " + thisVersion + ". Please remove FoamFix to update the world.");
+			this.message = new StringTextComponent("This world was last played in version " + oldVersion + "; you are now on version " + thisVersion + 
+													". Please disable FoamFix's DFU removal in the config to update the world.");
 		}
 	}
 

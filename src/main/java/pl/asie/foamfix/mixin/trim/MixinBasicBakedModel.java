@@ -26,7 +26,7 @@
  * additional permission to convey the resulting work.
  */
 
-package pl.asie.foamfix.mixin.client;
+package pl.asie.foamfix.mixin.trim;
 
 import java.util.ArrayList;
 import java.util.List;

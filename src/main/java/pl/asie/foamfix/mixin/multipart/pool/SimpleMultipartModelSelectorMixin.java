@@ -25,7 +25,7 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
-package pl.asie.foamfix.mixin.client;
+package pl.asie.foamfix.mixin.multipart.pool;
 
 import java.util.List;
 import java.util.Optional;

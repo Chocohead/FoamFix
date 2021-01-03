@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Chocohead
+ * Copyright (C) 2020, 2021 Chocohead
  *
  * This file is part of FoamFix.
  *
@@ -25,7 +25,7 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
-package pl.asie.foamfix.mixin.client;
+package pl.asie.foamfix.mixin.multipart.best;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,61 +33,25 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.At.Shift;
-import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
-import org.spongepowered.asm.mixin.injection.Redirect;
-import org.spongepowered.asm.mixin.injection.Slice;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.mojang.datafixers.util.Pair;
 
 import net.minecraft.block.BlockState;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.model.IUnbakedModel;
 import net.minecraft.client.renderer.model.ModelBakery;
 import net.minecraft.client.renderer.model.ModelBakery.ModelListWrapper;
 import net.minecraft.client.renderer.model.ModelResourceLocation;
 import net.minecraft.client.renderer.model.multipart.Multipart;
-import net.minecraft.client.renderer.texture.AtlasTexture;
-import net.minecraft.client.renderer.texture.SpriteMap;
-import net.minecraft.item.Item;
 import net.minecraft.util.ResourceLocation;
-
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.IRegistryDelegate;
 
 import pl.asie.foamfix.multipart.ResolvedMultipart;
 
 @Mixin(ModelBakery.class)
-class ModelBakeryMixin {
-	@Shadow
-	private @Final Map<ResourceLocation, IUnbakedModel> topUnbakedModels;
-	@Shadow
-	private Map<ResourceLocation, Pair<AtlasTexture, AtlasTexture.SheetData>> sheetData;
-
-	@Redirect(method = "processLoading",
-				at = @At(value = "NEW", target = "(Lnet/minecraft/util/ResourceLocation;Ljava/lang/String;)Lnet/minecraft/client/renderer/model/ModelResourceLocation;"),
-				slice = @Slice(from = @At(value = "CONSTANT", args = "stringValue=items"),
-								to = @At(value = "CONSTANT", args = "stringValue=special")))
-	private ModelResourceLocation reuseModelLocation(ResourceLocation item, String inventory) {
-		assert "inventory".equals(inventory);
-		Map<IRegistryDelegate<Item>, ModelResourceLocation> itemToModel = ((ItemModelMesherForgeAccess) Minecraft.getInstance().getItemRenderer().getItemModelMesher()).getLocations();
-
-		ModelResourceLocation out = itemToModel.get(ForgeRegistries.ITEMS.getValue(item).delegate);
-		return out != null ? out : new ModelResourceLocation(item, inventory);
-	}
-
-	@Inject(method = "uploadTextures", at = @At("RETURN"))
-	private void clearFinishedMaps(CallbackInfoReturnable<SpriteMap> info) {
-		topUnbakedModels.clear();
-		sheetData = null;
-	}
-
+abstract class ModelBakeryMixin {
 	@ModifyVariable(method = "lambda$loadBlockstate$25", at = @At(value = "INVOKE", target = "Lcom/mojang/datafixers/util/Pair;getFirst()Ljava/lang/Object;", shift = Shift.BY, by = -2, remap = false), ordinal = 1)
 	private Pair<IUnbakedModel, Supplier<ModelListWrapper>> wrapMultipartModels(Pair<IUnbakedModel, Supplier<ModelListWrapper>> variant, Map<BlockState, Pair<IUnbakedModel, Supplier<ModelListWrapper>>> stateToModel, 
 			ResourceLocation blockModel, Pair<IUnbakedModel, Supplier<ModelListWrapper>> missingModel, HashMap<?, Set<BlockState>> wrappedModelToState, ModelResourceLocation stateModel, BlockState state) {

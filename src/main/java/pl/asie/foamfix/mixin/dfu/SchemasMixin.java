@@ -40,6 +40,7 @@ import com.mojang.serialization.Dynamic;
 
 import net.minecraft.util.datafix.DataFixesManager;
 
+import pl.asie.foamfix.FoamyConfig;
 import pl.asie.foamfix.dfu.NoopSchema;
 
 @Mixin(DataFixesManager.class)
@@ -58,7 +59,7 @@ class SchemasMixin {
 			public <T> Dynamic<T> update(TypeReference type, Dynamic<T> input, int version, int newVersion) {
 				if (version < newVersion) {
 					//This is probably not good for the thing which needs to be updated
-					logger.warn("Skipping updating a " + type + " (" + input + ") from " + version);
+					if (FoamyConfig.LOG_DFU.asBoolean()) logger.warn("Skipping updating a " + type + " (" + input + ") from " + version);
 				}
 
 				return input;

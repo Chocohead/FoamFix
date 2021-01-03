@@ -3,27 +3,30 @@
   "package": "pl.asie.foamfix.mixin",
   "refmap": "foamfix.mixins-refmap.json",
   "compatibilityLevel": "JAVA_8",
+  "plugin": "pl.asie.foamfix.mixin.Plugin",
   "mixins": [
     "state.MixinStateFactoryBuilder",
     "dfu.SchemasMixin",
     "dfu.MinecraftServerMixin"
   ],
   "client": [
-    "client.MixinBasicBakedModel",
-    "client.MixinMultipartBakedModel",
-    "client.MixinWeightedBakedModel",
-    "client.ItemModelMesherForgeAccess",
-    "client.ModelBakeryMixin",
-    "client.SimpleMultipartModelSelectorMixin",
-    "client.AndMultipartModelSelectorMixin",
-    "client.OrMultipartModelSelectorMixin",
+    "trim.MixinBasicBakedModel",
+    "multipart.better.MixinMultipartBakedModel",
+    "trim.MixinWeightedBakedModel",
+    "memory.ModelBakeryMixin",
+    "memory.ItemModelMesherForgeAccess",
+    "trim.ModelBakeryMixin",
+    "multipart.pool.SimpleMultipartModelSelectorMixin",
+    "multipart.pool.AndMultipartModelSelectorMixin",
+    "multipart.pool.OrMultipartModelSelectorMixin",
     "client.ModelManagerMixin",
-    "client.JsonUnbakedModelMixin",
-    "client.MultipartUnbakedModelMixin",
-    "client.WeightedUnbakedModelMixin",
-    "client.WeightedUnbakedModelMixin$DeserialiserMixin",
+    "trim.JsonUnbakedModelMixin",
+    "trim.MultipartUnbakedModelMixin",
+    "trim.WeightedUnbakedModelMixin",
+    "trim.WeightedUnbakedModelMixin$DeserialiserMixin",
     "dfu.BackupPromptScreenMixin",
-    "client.ModelListWrapperAccess"
+    "multipart.best.ModelBakeryMixin",
+    "multipart.best.ModelListWrapperAccess"
   ],
   "injectors": {
     "defaultRequire": 1

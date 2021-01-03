@@ -9,11 +9,14 @@ buildscript {
 	dependencies {
 		classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '3.+', changing: true
 		classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
+		classpath 'com.github.jengelman.gradle.plugins:shadow:4.0.4'
 	}
 }
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'org.spongepowered.mixin'
 apply plugin: 'eclipse'
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 
 sourceCompatibility = JavaVersion.VERSION_1_8
@@ -25,7 +28,7 @@ tasks.withType(JavaCompile) {
 
 def modID = "foamfix"
 archivesBaseName = "$modID-Forge"
-version = '0.14.2'
+version = '0.15.0'
 
 minecraft {
 	mappings channel: 'snapshot', version: '20201028-1.16.3'
@@ -67,8 +70,14 @@ repositories {
 	maven { url 'https://repo.spongepowered.org/maven' }
 }
 
+configurations {
+	shade
+}
+
 dependencies {
 	minecraft 'net.minecraftforge:forge:1.16.4-35.1.13'
+
+	shade implementation('org.ini4j:ini4j:0.5.4')
 }
 
 mixin {
@@ -78,6 +87,7 @@ mixin {
 
 // Example for how to get properties into the manifest for reading by the runtime..
 jar {
+	classifier = 'unshaded'
 	manifest {
 		attributes([
 			'Specification-Title': "$modID",
@@ -92,4 +102,18 @@ jar {
 	}
 }
 
-jar.finalizedBy 'reobfJar'
+task shadowJar(type: ShadowJar) {
+	dependsOn 'reobfJar'
+    from(zipTree(jar.archivePath)) {//reobfJar acts in place
+    	rename 'org\\.ini4j\\.(.+)', 'com.chocohead.foamfix.ini4j.$1'
+    }
+    classifier ''
+    manifest.inheritFrom jar.manifest
+
+    configurations = [project.configurations.shade]
+	relocate 'org.ini4j', 'com.chocohead.foamfix.ini4j'
+	exclude 'META-INF/maven/**'
+	minimize()
+}
+
+assemble.dependsOn shadowJar

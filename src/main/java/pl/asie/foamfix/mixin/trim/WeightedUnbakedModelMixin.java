@@ -25,38 +25,48 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
-package pl.asie.foamfix.mixin.client;
+package pl.asie.foamfix.mixin.trim;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import com.mojang.datafixers.util.Either;
+import com.google.common.collect.Iterables;
 
-import net.minecraft.client.renderer.model.BlockModel;
-import net.minecraft.client.renderer.model.BlockModel.GuiLight;
-import net.minecraft.client.renderer.model.BlockPart;
-import net.minecraft.client.renderer.model.ItemCameraTransforms;
-import net.minecraft.client.renderer.model.ItemOverride;
-import net.minecraft.client.renderer.model.RenderMaterial;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.client.renderer.model.Variant;
+import net.minecraft.client.renderer.model.VariantList;
+import net.minecraft.client.renderer.model.VariantList.Deserializer;
 
-@Mixin(BlockModel.class)
-abstract class JsonUnbakedModelMixin {
+@Mixin(VariantList.class)
+abstract class WeightedUnbakedModelMixin {
 	@Inject(method = "<init>", at = @At("RETURN"))
-	private void shrink(ResourceLocation parentId, List<BlockPart> elements, Map<String, Either<RenderMaterial, String>> textureMap, boolean ambientOcclusion,
-						GuiLight guiLight, ItemCameraTransforms transformations, List<ItemOverride> overrides, CallbackInfo info) {
-		if (elements instanceof ArrayList) {
-			((ArrayList<?>) elements).trimToSize();
+	private void shrink(List<Variant> variants, CallbackInfo info) {
+		if (variants instanceof ArrayList) {
+			((ArrayList<?>) variants).trimToSize();
 		}
+	}
 
-		if (overrides instanceof ArrayList) {
-			((ArrayList<?>) overrides).trimToSize();
+	@Mixin(Deserializer.class)
+	static abstract class DeserialiserMixin {
+		@ModifyArg(method = "deserialize", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/model/VariantList;<init>(Ljava/util/List;)V", ordinal = 0))
+		private List<Variant> shrink(List<Variant> variants) {
+			switch (variants.size()) {
+			case 0:
+				return Collections.emptyList();
+
+			case 1:
+				return Collections.singletonList(Iterables.getOnlyElement(variants));
+
+			default:
+				return Arrays.asList(variants.toArray(new Variant[0]));
+			}
 		}
 	}
 }

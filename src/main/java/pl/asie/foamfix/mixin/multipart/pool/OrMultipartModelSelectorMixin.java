@@ -25,17 +25,37 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
-package pl.asie.foamfix.mixin.client;
+package pl.asie.foamfix.mixin.multipart.pool;
 
-import java.util.List;
+import java.util.function.Predicate;
 
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.gen.Accessor;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
 
-import net.minecraft.client.renderer.model.ModelBakery.ModelListWrapper;
+import com.google.common.collect.Streams;
 
-@Mixin(ModelListWrapper.class)
-public interface ModelListWrapperAccess {
-	@Accessor
-	List<Object> getColorValues();
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.client.renderer.model.multipart.ICondition;
+import net.minecraft.client.renderer.model.multipart.OrCondition;
+import net.minecraft.state.StateContainer;
+
+import pl.asie.foamfix.multipart.FoamyAnyPredicate;
+
+@Mixin(OrCondition.class)
+class OrMultipartModelSelectorMixin {
+	@Shadow
+	private @Final Iterable<? extends ICondition> conditions;
+
+	/**
+	 * @author Chocohead
+	 * @reason Avoid producing a leaky list when an array is fine
+	 */
+	@Overwrite
+	@SuppressWarnings("unchecked")
+	public Predicate<BlockState> getPredicate(StateContainer<Block, BlockState> stateManager) {		
+		return new FoamyAnyPredicate(true, Streams.stream(conditions).map(condition -> condition.getPredicate(stateManager)).toArray(Predicate[]::new));
+	}
 }

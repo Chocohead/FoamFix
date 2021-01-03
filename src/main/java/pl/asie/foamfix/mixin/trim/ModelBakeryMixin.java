@@ -25,48 +25,38 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
-package pl.asie.foamfix.mixin.client;
+package pl.asie.foamfix.mixin.trim;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Mutable;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import com.google.common.collect.Iterables;
+import com.mojang.datafixers.util.Pair;
 
-import net.minecraft.client.renderer.model.Variant;
-import net.minecraft.client.renderer.model.VariantList;
-import net.minecraft.client.renderer.model.VariantList.Deserializer;
+import net.minecraft.client.renderer.model.IUnbakedModel;
+import net.minecraft.client.renderer.model.ModelBakery;
+import net.minecraft.client.renderer.texture.AtlasTexture;
+import net.minecraft.client.renderer.texture.AtlasTexture.SheetData;
+import net.minecraft.client.renderer.texture.SpriteMap;
+import net.minecraft.util.ResourceLocation;
 
-@Mixin(VariantList.class)
-abstract class WeightedUnbakedModelMixin {
-	@Inject(method = "<init>", at = @At("RETURN"))
-	private void shrink(List<Variant> variants, CallbackInfo info) {
-		if (variants instanceof ArrayList) {
-			((ArrayList<?>) variants).trimToSize();
-		}
-	}
+@Mixin(ModelBakery.class)
+class ModelBakeryMixin {
+	@Shadow
+	@Mutable
+	private @Final Map<ResourceLocation, IUnbakedModel> topUnbakedModels;
+	@Shadow
+	private Map<ResourceLocation, Pair<AtlasTexture, SheetData>> sheetData;
 
-	@Mixin(Deserializer.class)
-	static abstract class DeserialiserMixin {
-		@ModifyArg(method = "deserialize", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/model/VariantList;<init>(Ljava/util/List;)V", ordinal = 0))
-		private List<Variant> shrink(List<Variant> variants) {
-			switch (variants.size()) {
-			case 0:
-				return Collections.emptyList();
-
-			case 1:
-				return Collections.singletonList(Iterables.getOnlyElement(variants));
-
-			default:
-				return Arrays.asList(variants.toArray(new Variant[0]));
-			}
-		}
+	@Inject(method = "uploadTextures", at = @At("RETURN"))
+	private void clearFinishedMaps(CallbackInfoReturnable<SpriteMap> info) {
+		topUnbakedModels = null;
+		sheetData = null;
 	}
 }

@@ -25,28 +25,37 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
-package pl.asie.foamfix.mixin.client;
+package pl.asie.foamfix.mixin.multipart.pool;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.function.Predicate;
 
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
+
+import com.google.common.collect.Streams;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
-import net.minecraft.client.renderer.model.multipart.Multipart;
-import net.minecraft.client.renderer.model.multipart.Selector;
+import net.minecraft.client.renderer.model.multipart.AndCondition;
+import net.minecraft.client.renderer.model.multipart.ICondition;
 import net.minecraft.state.StateContainer;
 
-@Mixin(Multipart.class)
-abstract class MultipartUnbakedModelMixin {
-	@Inject(method = "<init>", at = @At("RETURN"))
-	private void shrink(StateContainer<Block, BlockState> stateFactory, List<Selector> components, CallbackInfo info) {
-		if (components instanceof ArrayList) {
-			((ArrayList<?>) components).trimToSize();
-		}
+import pl.asie.foamfix.multipart.FoamyAllPredicate;
+
+@Mixin(AndCondition.class)
+class AndMultipartModelSelectorMixin {
+	@Shadow
+	private @Final Iterable<? extends ICondition> conditions;
+
+	/**
+	 * @author Chocohead
+	 * @reason Avoid producing a leaky list when an array is fine
+	 */
+	@Overwrite
+	@SuppressWarnings("unchecked")
+	public Predicate<BlockState> getPredicate(StateContainer<Block, BlockState> stateManager) {		
+		return new FoamyAllPredicate(true, Streams.stream(conditions).map(condition -> condition.getPredicate(stateManager)).toArray(Predicate[]::new));
 	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016, 2017, 2018, 2019 Adrian Siekierka
+ * Copyright (C) 2020 Chocohead
  *
  * This file is part of FoamFix.
  *
@@ -25,25 +25,38 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
-
-package pl.asie.foamfix.mixin.client;
+package pl.asie.foamfix.mixin.trim;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import net.minecraft.client.renderer.model.WeightedBakedModel;
+import com.mojang.datafixers.util.Either;
 
-@Mixin(WeightedBakedModel.class)
-public class MixinWeightedBakedModel {
+import net.minecraft.client.renderer.model.BlockModel;
+import net.minecraft.client.renderer.model.BlockModel.GuiLight;
+import net.minecraft.client.renderer.model.BlockPart;
+import net.minecraft.client.renderer.model.ItemCameraTransforms;
+import net.minecraft.client.renderer.model.ItemOverride;
+import net.minecraft.client.renderer.model.RenderMaterial;
+import net.minecraft.util.ResourceLocation;
+
+@Mixin(BlockModel.class)
+abstract class JsonUnbakedModelMixin {
 	@Inject(method = "<init>", at = @At("RETURN"))
-	public void construct(List<?> list_1, CallbackInfo info) {
-		if (list_1 instanceof ArrayList) {
-			((ArrayList<?>) list_1).trimToSize();
+	private void shrink(ResourceLocation parentId, List<BlockPart> elements, Map<String, Either<RenderMaterial, String>> textureMap, boolean ambientOcclusion,
+						GuiLight guiLight, ItemCameraTransforms transformations, List<ItemOverride> overrides, CallbackInfo info) {
+		if (elements instanceof ArrayList) {
+			((ArrayList<?>) elements).trimToSize();
+		}
+
+		if (overrides instanceof ArrayList) {
+			((ArrayList<?>) overrides).trimToSize();
 		}
 	}
 }

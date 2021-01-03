@@ -25,21 +25,28 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
-package pl.asie.foamfix.mixin.client;
+package pl.asie.foamfix.mixin.trim;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.gen.Accessor;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import net.minecraft.client.renderer.model.ModelResourceLocation;
-import net.minecraft.item.Item;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.client.renderer.model.multipart.Multipart;
+import net.minecraft.client.renderer.model.multipart.Selector;
+import net.minecraft.state.StateContainer;
 
-import net.minecraftforge.client.ItemModelMesherForge;
-import net.minecraftforge.registries.IRegistryDelegate;
-
-@Mixin(value = ItemModelMesherForge.class, remap = false)
-public interface ItemModelMesherForgeAccess {
-	@Accessor
-	Map<IRegistryDelegate<Item>, ModelResourceLocation> getLocations();
+@Mixin(Multipart.class)
+abstract class MultipartUnbakedModelMixin {
+	@Inject(method = "<init>", at = @At("RETURN"))
+	private void shrink(StateContainer<Block, BlockState> stateFactory, List<Selector> components, CallbackInfo info) {
+		if (components instanceof ArrayList) {
+			((ArrayList<?>) components).trimToSize();
+		}
+	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Chocohead
+ * Copyright (C) 2016, 2017, 2018, 2019 Adrian Siekierka
  *
  * This file is part of FoamFix.
  *
@@ -25,37 +25,25 @@
  * their respective licenses, the licensors of this Program grant you
  * additional permission to convey the resulting work.
  */
-package pl.asie.foamfix.mixin.client;
 
-import java.util.function.Predicate;
+package pl.asie.foamfix.mixin.trim;
 
-import org.spongepowered.asm.mixin.Final;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
-import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import com.google.common.collect.Streams;
+import net.minecraft.client.renderer.model.WeightedBakedModel;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.renderer.model.multipart.AndCondition;
-import net.minecraft.client.renderer.model.multipart.ICondition;
-import net.minecraft.state.StateContainer;
-
-import pl.asie.foamfix.multipart.FoamyAllPredicate;
-
-@Mixin(AndCondition.class)
-class AndMultipartModelSelectorMixin {
-	@Shadow
-	private @Final Iterable<? extends ICondition> conditions;
-
-	/**
-	 * @author Chocohead
-	 * @reason Avoid producing a leaky list when an array is fine
-	 */
-	@Overwrite
-	@SuppressWarnings("unchecked")
-	public Predicate<BlockState> getPredicate(StateContainer<Block, BlockState> stateManager) {		
-		return new FoamyAllPredicate(true, Streams.stream(conditions).map(condition -> condition.getPredicate(stateManager)).toArray(Predicate[]::new));
+@Mixin(WeightedBakedModel.class)
+public class MixinWeightedBakedModel {
+	@Inject(method = "<init>", at = @At("RETURN"))
+	public void construct(List<?> list_1, CallbackInfo info) {
+		if (list_1 instanceof ArrayList) {
+			((ArrayList<?>) list_1).trimToSize();
+		}
 	}
 }
