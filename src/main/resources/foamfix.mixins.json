@@ -29,7 +29,10 @@
     "multipart.best.ModelBakeryMixin",
     "multipart.best.ModelListWrapperAccess",
     "trim.TransformationMatrixAccess",
-    "client.MinecraftMixin"
+    "client.MinecraftMixin",
+    "thready.ModelBakeryMixin",
+    "thready.ContainerHolderMixin",
+    "thready.OBJLoaderMixin"
   ],
   "injectors": {
     "defaultRequire": 1

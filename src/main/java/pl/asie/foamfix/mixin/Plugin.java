@@ -84,7 +84,10 @@ public class Plugin implements IMixinConfigPlugin {
 			return FoamyConfig.REPLACE_MULTIPART.asBoolean();
 
 		case "memory":
-			return FoamyConfig.RECYCLE_IDENTIFIERS.asBoolean();
+			return FoamyConfig.RECYCLE_IDENTIFIERS.asBoolean() && (!FoamyConfig.THREAD_MODELS.asBoolean() || !"ModelBakeryMixin".equals(mixinClassName.substring(split + 1)));
+
+		case "thready":
+			return FoamyConfig.THREAD_MODELS.asBoolean();
 
 		case "dfu":
 			return FoamyConfig.CULL_DFU.asBoolean();

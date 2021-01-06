@@ -99,6 +99,18 @@ public enum FoamyConfig {
 			setComment("Enable the removal of DataFixerUpper", "Reduces startup times and memory use, at the expense of not being able to update worlds");
 		}		
 	},
+	THREAD_MODELS("features", "experimental", "thread-models") {
+		@Override
+		boolean isValid(String value) {
+			return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+		}
+
+		@Override
+		void fillDefault() {
+			set("false");
+			setComment("Enable loading models in parallel to speed up startup", "Potentially could cause incompatibilities with custom models");
+		}
+	},
 	LOG_DFU("debug", "dfu") {
 		@Override
 		boolean isValid(String value) {
