@@ -1,5 +1,6 @@
 {
   "required": true,
+  "minVersion": 0.7,
   "package": "pl.asie.foamfix.mixin",
   "refmap": "foamfix.mixins-refmap.json",
   "compatibilityLevel": "JAVA_8",

@@ -22,17 +22,17 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 sourceCompatibility = JavaVersion.VERSION_1_8
 targetCompatibility = JavaVersion.VERSION_1_8
 tasks.withType(JavaCompile) {
-	options.encoding = "UTF-8"
+	options.encoding = 'UTF-8'
 }
 
 
-def modID = "foamfix"
+def modID = 'foamfix'
 archivesBaseName = "$modID-Forge"
 version = '0.15.2'
 
 minecraft {
 	mappings channel: 'snapshot', version: '20201028-1.16.3'
-	accessTransformer = file('AT.cfg')
+	accessTransformer file('AT.cfg'), file('src/main/resources/META-INF/accesstransformer.cfg')
 
 	runs {
 		client {
@@ -75,7 +75,7 @@ configurations {
 }
 
 dependencies {
-	minecraft 'net.minecraftforge:forge:1.16.4-35.1.13'
+	minecraft 'net.minecraftforge:forge:1.16.4-35.1.28'
 
 	shade implementation('org.ini4j:ini4j:0.5.4')
 }
