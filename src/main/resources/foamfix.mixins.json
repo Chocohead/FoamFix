@@ -27,7 +27,8 @@
     "dfu.BackupPromptScreenMixin",
     "multipart.best.ModelBakeryMixin",
     "multipart.best.ModelListWrapperAccess",
-    "trim.TransformationMatrixAccess"
+    "trim.TransformationMatrixAccess",
+    "client.MinecraftMixin"
   ],
   "injectors": {
     "defaultRequire": 1
