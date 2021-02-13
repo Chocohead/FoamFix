@@ -275,6 +275,7 @@ abstract class ModelBakeryMixin {
 						bakedModel = bakedModels.get(key);
 					} else {
 						bakedModel = unbakedModel.bakeModel((ModelBakery) (Object) this, spriteMap::getSprite, ModelRotation.X0_Y0, key.location);
+						bakedModels.put(key, bakedModel);
 					}
 				}
 			} catch (Exception e) {

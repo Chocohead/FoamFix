@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.model.IUnbakedModel;
 import net.minecraft.profiler.IProfiler;
 import net.minecraft.util.ResourceLocation;
@@ -89,7 +90,8 @@ public class ParallelBaker {
 		topLevelModels.putAll(allModels); //Only the missing model
 
 		//A more parallel access friendly queue for model dependencies to pour into
-		Map<String, BlockingQueue<ResourceLocation>> parentModels = namespacedModels.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> new LinkedBlockingQueue<>()));
+		Map<String, BlockingQueue<ResourceLocation>> parentModels = Minecraft.getInstance().getResourceManager().getResourceNamespaces().stream()
+																								.collect(Collectors.toMap(Function.identity(), k -> new LinkedBlockingQueue<>()));
 		Set<ResourceLocation> allParents = ConcurrentHashMap.newKeySet(knownModels.size());
 		allParents.addAll(knownModels); //Clone the model map to be more thread safe
 

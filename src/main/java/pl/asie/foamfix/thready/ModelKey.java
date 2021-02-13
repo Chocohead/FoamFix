@@ -68,4 +68,9 @@ public class ModelKey {
 
 		return false;
 	}
+
+	@Override
+	public String toString() {
+		return location + " @ rotation: " + rotation + ", uvLock: " + uvLock;
+	}
 }
