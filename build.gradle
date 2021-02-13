@@ -68,6 +68,7 @@ minecraft {
 repositories {
 	mavenCentral()
 	maven { url 'https://repo.spongepowered.org/maven' }
+	maven { url 'http://maven.tterrag.com/' }
 }
 
 configurations {
@@ -77,6 +78,7 @@ configurations {
 dependencies {
 	minecraft 'net.minecraftforge:forge:1.16.4-35.1.28'
 
+	implementation fg.deobf('team.chisel.ctm:CTM:MC1.16.1-1.1.2.6')
 	shade implementation('org.ini4j:ini4j:0.5.4')
 }
 

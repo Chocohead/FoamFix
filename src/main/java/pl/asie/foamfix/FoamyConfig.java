@@ -111,6 +111,18 @@ public enum FoamyConfig {
 			setComment("Enable loading models in parallel to speed up startup", "Potentially could cause incompatibilities with custom models");
 		}
 	},
+	CACHE_MODELS("features", "experimental", "cache-models") {
+		@Override
+		boolean isValid(String value) {
+			return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+		}
+
+		@Override
+		void fillDefault() {
+			set("false");
+			setComment("Enable the caching of models after the first load to speed up startup", "Will either work very well or cause bad incompatibilities with custom models");
+		}
+	},
 	LOG_DFU("debug", "dfu") {
 		@Override
 		boolean isValid(String value) {

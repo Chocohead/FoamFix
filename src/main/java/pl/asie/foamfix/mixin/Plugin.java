@@ -92,6 +92,9 @@ public class Plugin implements IMixinConfigPlugin {
 		case "dfu":
 			return FoamyConfig.CULL_DFU.asBoolean();
 
+		case "blob":
+			return FoamyConfig.CACHE_MODELS.asBoolean();
+
 		default:
 			return true;
 		}

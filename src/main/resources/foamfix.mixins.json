@@ -32,7 +32,11 @@
     "client.MinecraftMixin",
     "thready.ModelBakeryMixin",
     "thready.ContainerHolderMixin",
-    "thready.OBJLoaderMixin"
+    "thready.OBJLoaderMixin",
+    "blob.ModelBakeryAccess",
+    "blob.ModelManagerMixin",
+    "blob.ItemOverrideListAccess",
+    "blob.ModelCTMAccess"
   ],
   "injectors": {
     "defaultRequire": 1
