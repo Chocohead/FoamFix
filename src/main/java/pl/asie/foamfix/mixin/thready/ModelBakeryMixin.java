@@ -67,6 +67,7 @@ import net.minecraftforge.client.ForgeHooksClient;
 import net.minecraftforge.client.model.ModelLoaderRegistry;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import pl.asie.foamfix.blob.CacheController;
 import pl.asie.foamfix.thready.ModelKey;
 import pl.asie.foamfix.thready.ParallelBaker;
 
@@ -254,6 +255,7 @@ abstract class ModelBakeryMixin {
 
 	@Redirect(method = "uploadTextures", at = @At(value = "INVOKE", target = "Ljava/util/Map;keySet()Ljava/util/Set;", remap = false))
 	private Set<ResourceLocation> doBaking(Map<ResourceLocation, IUnbakedModel> topUnbakedModels) {
+		CacheController.loadCache(topUnbakedModels, bakedModels, topBakedModels);
 		TransformationMatrix rotation = ModelRotation.X0_Y0.getRotation();
 		boolean uvLock = ModelRotation.X0_Y0.isUvLock();
 		long start = System.nanoTime();
