@@ -10,11 +10,15 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import net.minecraft.client.renderer.model.IBakedModel;
 import net.minecraft.client.renderer.model.IUnbakedModel;
 import net.minecraft.client.renderer.model.ModelBakery;
+import net.minecraft.client.renderer.texture.SpriteMap;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.vector.TransformationMatrix;
 
 @Mixin(ModelBakery.class)
 public interface ModelBakeryAccess {
+	@Accessor
+	SpriteMap getSpriteMap();
+
 	@Accessor
 	Map<ResourceLocation, IUnbakedModel> getUnbakedModels();
 

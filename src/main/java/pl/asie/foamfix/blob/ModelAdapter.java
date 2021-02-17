@@ -2,6 +2,7 @@ package pl.asie.foamfix.blob;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import com.google.gson.Gson;
@@ -11,9 +12,13 @@ import com.google.gson.stream.JsonWriter;
 
 import net.minecraft.client.renderer.model.IBakedModel;
 
-abstract class Special<T extends IBakedModel> extends TypeAdapter<T> {
-	public Special() {
+abstract class ModelAdapter<T extends IBakedModel> extends TypeAdapter<T> {
+	public ModelAdapter() {
 	}
+
+	public abstract boolean valid(T model);
+
+	public abstract Set<Class<? extends IBakedModel>> blameNonvalidity(T model);
 
 	protected void appendExtraTypes(BiConsumer<Type, TypeAdapter<?>> typeAdapter) {
 	}

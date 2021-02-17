@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.IdentityHashMap;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.commons.lang3.tuple.Triple;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Streams;
 import com.google.common.primitives.Primitives;
 import com.google.common.reflect.TypeToken;
@@ -117,16 +119,20 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ReferenceLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ShortOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import it.unimi.dsi.fastutil.objects.Reference2BooleanOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2ByteOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2CharOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2FloatOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Reference2IntMap;
+import it.unimi.dsi.fastutil.objects.Reference2IntMaps;
 import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2LongOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2ShortOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import it.unimi.dsi.fastutil.shorts.Short2BooleanOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.Short2ByteOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.Short2CharOpenHashMap;
@@ -140,7 +146,6 @@ import it.unimi.dsi.fastutil.shorts.Short2ShortOpenHashMap;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BlockModelShapes;
 import net.minecraft.client.renderer.model.BakedQuad;
 import net.minecraft.client.renderer.model.BlockModel;
@@ -196,9 +201,12 @@ public class ModelSerialiser {
 	@SuppressWarnings("serial")
 	static final Type MAP_KEY_TYPE = FoamyConfig.THREAD_MODELS.asBoolean() ? ModelKey.class : new TypeToken<Triple<ResourceLocation, TransformationMatrix, Boolean>>() {
 	}.getType();
+	@SuppressWarnings("serial")
+	private static final Type REJECTS_TYPE = new TypeToken<Set<ResourceLocation>>() {
+	}.getType();
 	private static Map<IBakedModel, Object> reverseModelMap = new IdentityHashMap<>();
 	private static List<AwaitingModel<?>> fieldsToFix = new ArrayList<>();
-	private static final Map<Class<?>, Special<?>> KNOWN_MODELS = specialCases();
+	private static final Map<Class<?>, ModelAdapter<?>> KNOWN_MODELS = specialCases();
 	private static final Gson GSON = builder().registerTypeAdapter(ModelKey.class, new TypeAdapter<ModelKey>() {
 		private final Matrix4f identity = TransformationMatrix.identity().getMatrix();
 
@@ -377,7 +385,7 @@ public class ModelSerialiser {
 			}
 
 			in.endObject();
-			return Minecraft.getInstance().getAtlasSpriteGetter(atlas).apply(name);
+			return ((ModelBakeryAccess) (Object) ModelLoader.instance()).getSpriteMap().getAtlasTexture(atlas).getSprite(name);
 		}
 	}.nullSafe()).registerTypeAdapter(Vector3f.class, new TypeAdapter<Vector3f>() {
 		@Override
@@ -651,7 +659,7 @@ public class ModelSerialiser {
 			if (modelClass != DelayedModel.class) {
 				out.name("blob");
 				@SuppressWarnings("unchecked") //Probably fine
-				Special<IBakedModel> modelAdapter = (Special<IBakedModel>) KNOWN_MODELS.get(modelClass);
+				ModelAdapter<IBakedModel> modelAdapter = (ModelAdapter<IBakedModel>) KNOWN_MODELS.get(modelClass);
 				if (modelAdapter == null) {
 					throw new IllegalArgumentException("Unexpected model type: " + modelClass);
 				} else {
@@ -711,7 +719,7 @@ public class ModelSerialiser {
 				}
 
 				@SuppressWarnings("unchecked") //Probably fine
-				Special<IBakedModel> modelAdapter = (Special<IBakedModel>) KNOWN_MODELS.get(clazz);
+				ModelAdapter<IBakedModel> modelAdapter = (ModelAdapter<IBakedModel>) KNOWN_MODELS.get(clazz);
 				if (modelAdapter == null) {
 					throw new IllegalArgumentException("Lost model type: " + clazz);
 				} else {
@@ -1071,20 +1079,35 @@ public class ModelSerialiser {
 			if (!rawType.isEnum()) {
 				rawType = rawType.getSuperclass();
 			}
-			return forEnum(rawType.asSubclass(Enum.class));
+			return /* ECJ doesn't need this cast: */(TypeAdapter<T>) forEnum(rawType.asSubclass(Enum.class));
 		}
 	}).disableHtmlEscaping().enableComplexMapKeySerialization().serializeSpecialFloatingPointValues().setPrettyPrinting().create();
 
-	private static Map<Class<?>, Special<?>> specialCases() {
-		Map<Class<?>, Special<?>> out = new IdentityHashMap<>();
+	private static Map<Class<?>, ModelAdapter<?>> specialCases() {
+		Map<Class<?>, ModelAdapter<?>> out = new IdentityHashMap<>();
 
-		out.put(SimpleBakedModel.class, new Special<SimpleBakedModel>() {
+		out.put(SimpleBakedModel.class, new ModelAdapter<SimpleBakedModel>() {
 			@SuppressWarnings("serial") //Bit silly
 			private final Type quadList = new TypeToken<List<BakedQuad>>() {
 			}.getType();
 			@SuppressWarnings("serial")
 			private final Type quadMap = new TypeToken<Map<Direction, List<BakedQuad>>>() {
 			}.getType();
+
+			@Override
+			public boolean valid(SimpleBakedModel model) {
+				for (IBakedModel override : ((ItemOverrideListAccess) model.getOverrides()).getOverrideBakedModels()) {
+					if (!canSerialise(override)) return false;
+				}
+
+				return true;
+			}
+
+			@Override
+			public Set<Class<? extends IBakedModel>> blameNonvalidity(SimpleBakedModel model) {
+				return ((ItemOverrideListAccess) model.getOverrides()).getOverrideBakedModels().stream()
+								.filter(ModelSerialiser::canSerialise).map(IBakedModel::getClass).collect(Collectors.toSet());
+			}
 
 			@Override
 			public void write(JsonWriter out, SimpleBakedModel value) throws IOException {
@@ -1164,7 +1187,22 @@ public class ModelSerialiser {
 				return new SimpleBakedModel(quads, faceQuads, usesAO, isSideLit, hasDepth, sprite, transformation, itemOverrides);
 			}
 		});
-		out.put(BuiltInModel.class, new Special<BuiltInModel>() {
+		out.put(BuiltInModel.class, new ModelAdapter<BuiltInModel>() {
+			@Override
+			public boolean valid(BuiltInModel model) {
+				for (IBakedModel override : ((ItemOverrideListAccess) model.getOverrides()).getOverrideBakedModels()) {
+					if (!canSerialise(override)) return false;
+				}
+
+				return true;
+			}
+
+			@Override
+			public Set<Class<? extends IBakedModel>> blameNonvalidity(BuiltInModel model) {
+				return ((ItemOverrideListAccess) model.getOverrides()).getOverrideBakedModels().stream()
+								.filter(ModelSerialiser::canSerialise).map(IBakedModel::getClass).collect(Collectors.toSet());
+			}
+
 			@Override
 			public void write(JsonWriter out, BuiltInModel value) throws IOException {
 				out.beginObject();
@@ -1216,11 +1254,26 @@ public class ModelSerialiser {
 				return new BuiltInModel(transformation, itemOverrides, sprite, isSideLit);
 			}
 		});
-		out.put(WeightedBakedModel.class, new Special<WeightedBakedModel>() {
+		out.put(WeightedBakedModel.class, new ModelAdapter<WeightedBakedModel>() {
 			private final UnaryOperator<WeightedBakedModel> fixer = glanceFixer(new ModelField<>(ObfuscationReflectionHelper.findField(WeightedBakedModel.class, "field_177566_c")));
 			@SuppressWarnings("serial")
 			private final Type modelsType = new TypeToken<List<WeightedModel>>() {
 			}.getType();
+
+			@Override
+			public boolean valid(WeightedBakedModel model) {
+				for (WeightedModel weightedModel : ((WeightedBakedModelAccess) model).getModels()) {
+					if (!canSerialise(weightedModel.model)) return false;
+				}
+
+				return true;
+			}
+
+			@Override
+			public Set<Class<? extends IBakedModel>> blameNonvalidity(WeightedBakedModel model) {
+				return ((WeightedBakedModelAccess) model).getModels().stream().map(weightedModel -> weightedModel.model)
+								.filter(ModelSerialiser::canSerialise).map(IBakedModel::getClass).collect(Collectors.toSet());
+			}
 
 			@Override
 			public void write(JsonWriter out, WeightedBakedModel value) throws IOException {
@@ -1274,8 +1327,22 @@ public class ModelSerialiser {
 				});
 			}
 		});
-		out.put(ResolvedMultipartModel.class, new Special<ResolvedMultipartModel>() {
+		out.put(ResolvedMultipartModel.class, new ModelAdapter<ResolvedMultipartModel>() {
 			private final Consumer<IBakedModel[]> fixer = queueFixer(new AwaitingModelArray<>(Function.identity()));
+
+			@Override
+			public boolean valid(ResolvedMultipartModel model) {
+				for (IBakedModel part : model.models) {
+					if (!canSerialise(part)) return false;
+				}
+
+				return true;
+			}
+
+			@Override
+			public Set<Class<? extends IBakedModel>> blameNonvalidity(ResolvedMultipartModel model) {
+				return Arrays.stream(model.models).filter(ModelSerialiser::canSerialise).map(IBakedModel::getClass).collect(Collectors.toSet());
+			}
 
 			@Override
 			public void write(JsonWriter out, ResolvedMultipartModel value) throws IOException {
@@ -1304,8 +1371,19 @@ public class ModelSerialiser {
 		});
 
 		if (ModList.get().isLoaded("ctm")) {
-			out.put(ModelBakedCTM.class, new Special<ModelBakedCTM>() {
+			out.put(ModelBakedCTM.class, new ModelAdapter<ModelBakedCTM>() {
 				private final UnaryOperator<ModelBakedCTM> fixer = glanceFixer(new QuickModelField<ModelBakedCTM>(FieldUtils.getDeclaredField(AbstractCTMBakedModel.class, "parent", true), ModelBakedCTM::getParent));
+
+				@Override
+				public boolean valid(ModelBakedCTM model) {
+					return canSerialise(model.getParent());
+				}
+
+				@Override
+				public Set<Class<? extends IBakedModel>> blameNonvalidity(ModelBakedCTM model) {
+					return Collections.singleton(model.getParent().getClass());
+				}
+
 				@Override
 				public void write(JsonWriter out, ModelBakedCTM value) throws IOException {
 					out.beginObject();
@@ -1400,7 +1478,9 @@ public class ModelSerialiser {
 
 							in.endObject();
 							ModelCTM out = modelInfo == null ? new ModelCTM(vanillaModel) : new ModelCTM(modelInfo, overrides);
-							out.initializeTextures(ModelLoader.instance(), ModelLoader.defaultTextureGetter());
+							out.initializeTextures(ModelLoader.instance(), material -> ((ModelBakeryAccess) (Object) ModelLoader.instance()).getSpriteMap()
+								.getAtlasTexture(material.getAtlasLocation()).getSprite(material.getTextureLocation())
+							);
 							return out;
 						}
 					});
@@ -1427,7 +1507,7 @@ public class ModelSerialiser {
 	private static GsonBuilder builder() {
 		GsonBuilder out = new GsonBuilder();
 
-		for (Special<?> specialCase : KNOWN_MODELS.values()) {
+		for (ModelAdapter<?> specialCase : KNOWN_MODELS.values()) {
 			specialCase.appendExtraTypes(out::registerTypeAdapter);
 		}
 
@@ -1487,8 +1567,73 @@ public class ModelSerialiser {
 		};
 	}
 
-	public static void serialise(Map<?, IBakedModel> models, Map<ResourceLocation, IBakedModel> topModels, Path to) {
+	public static boolean canSerialise(IBakedModel model) {
+		if (model == null) return true; //It'll get skipped but sure
+
+		@SuppressWarnings("unchecked") //They're added to the map by type so this should be fine
+		ModelAdapter<IBakedModel> serialiser = (ModelAdapter<IBakedModel>) KNOWN_MODELS.get(model.getClass());
+		return serialiser != null && serialiser.valid(model);
+	}
+
+	private static String blameNonserialisability(IBakedModel model) {
+		assert !canSerialise(model);
+
+		@SuppressWarnings("unchecked") //They're added to the map by type so this should be fine
+		ModelAdapter<IBakedModel> serialiser = (ModelAdapter<IBakedModel>) KNOWN_MODELS.get(model.getClass());
+		if (serialiser == null) return "Unknown model type";
+
+		Set<Class<? extends IBakedModel>> blamedTypes = serialiser.blameNonvalidity(model);
+		return !blamedTypes.isEmpty() ? blamedTypes.stream().map(Class::getName).collect(Collectors.joining(", ", "Non-serialisable contained models: ", "")) : "Serialiser rejected";
+	}
+
+	public static void serialisablility(Map<?, IBakedModel> models, Map<ResourceLocation, IBakedModel> topModels) {
+		Set<IBakedModel> seenModels = new ReferenceOpenHashSet<>(models.size());
+		int totalValid = 0;
+		Reference2IntMap<Class<? extends IBakedModel>> valid = Util.make(new Reference2IntOpenHashMap<>(), map -> map.defaultReturnValue(-1));
+		int totalRejected = 0;
+		Reference2IntMap<Class<? extends IBakedModel>> rejected = Util.make(new Reference2IntOpenHashMap<>(), map -> map.defaultReturnValue(-1));
+		final boolean findCause = FoamyConfig.LOG_MODELS_BLAME.asBoolean();
+
+		for (IBakedModel model : Iterables.concat(topModels.values(), models.values())) {//Loop top models first as mods can replace these via ModelBakeEvent
+			if (model != null && seenModels.add(model)) {
+				Reference2IntMap<Class<? extends IBakedModel>> map;
+				if (canSerialise(model)) {
+					totalValid++;
+					map = valid;
+				} else {
+					if (findCause) System.out.printf("Can't serialise %s as %s%n", model.getClass().getName(), blameNonserialisability(model));
+					totalRejected++;
+					map = rejected;
+				}
+				Class<? extends IBakedModel> key = model.getClass();
+
+				int value = map.getInt(key);
+				if (value < 0) {
+					map.put(key, 1);
+				} else {
+					map.put(key, value + 1);
+				}
+			}
+		}
+
+		System.out.printf("Out of the %d models, %.1f%% were serialisable:%n", seenModels.size(), (totalValid * 100F) / seenModels.size());
+		if (!valid.isEmpty()) {
+			System.out.printf("\tOf the %d serialisable models, there were %d types:%n", totalValid, valid.size());
+			for (Reference2IntMap.Entry<Class<? extends IBakedModel>> entry : Reference2IntMaps.fastIterable(valid)) {
+				System.out.printf("\t\t%d were %s%n", entry.getIntValue(), entry.getKey().getName());
+			}
+		} else System.out.println("No models were serialisable!");
+		if (!rejected.isEmpty()) {
+			System.out.printf("\tOf the %d non-serialisable models, there were %d types:%n", totalRejected, rejected.size());
+			for (Reference2IntMap.Entry<Class<? extends IBakedModel>> entry : Reference2IntMaps.fastIterable(rejected)) {
+				System.out.printf("\t\t%d were %s%n", entry.getIntValue(), entry.getKey().getName());
+			}
+		} else System.out.println("No models were non-serialisable");
+	}
+
+	public static Set<ResourceLocation> serialise(Map<?, IBakedModel> models, Map<ResourceLocation, IBakedModel> topModels, Path to) {
 		Map<Object, IBakedModel> allModels = new Object2ReferenceLinkedOpenHashMap<>(models.size());
+		Set<ResourceLocation> rejects = new ObjectOpenHashSet<>();
 
 		assert reverseModelMap.isEmpty();
 		for (Entry<ResourceLocation, IBakedModel> entry : topModels.entrySet()) {//Loop top models first as mods can replace these via ModelBakeEvent
@@ -1496,22 +1641,28 @@ public class ModelSerialiser {
 																: Triple.of(entry.getKey(), ModelRotation.X0_Y0.getRotation(), ModelRotation.X0_Y0.isUvLock());
 
 			IBakedModel model = entry.getValue();
-			if (!reverseModelMap.containsKey(model)) {
-				allModels.put(key, model);
-				reverseModelMap.put(model, key);
+			if (canSerialise(model)) {
+				if (!reverseModelMap.containsKey(model)) {
+					allModels.put(key, model);
+					reverseModelMap.put(model, key);
+				} else {
+					allModels.put(key, new DelayedModel(reverseModelMap.get(model)));
+				}
 			} else {
-				allModels.put(key, new DelayedModel(reverseModelMap.get(model)));
+				rejects.add(entry.getKey());
 			}
 		}
 		for (Entry<?, IBakedModel> entry : models.entrySet()) {
 			if (!allModels.containsKey(entry.getKey())) {
 				IBakedModel model = entry.getValue();
 
-				if (!reverseModelMap.containsKey(model)) {
-					allModels.put(entry.getKey(), model);
-					reverseModelMap.put(model, entry.getKey());
-				} else {
-					allModels.put(entry.getKey(), new DelayedModel(reverseModelMap.get(model)));
+				if (canSerialise(model)) {
+					if (!reverseModelMap.containsKey(model)) {
+						allModels.put(entry.getKey(), model);
+						reverseModelMap.put(model, entry.getKey());
+					} else {
+						allModels.put(entry.getKey(), new DelayedModel(reverseModelMap.get(model)));
+					}
 				}
 			}
 		}
@@ -1522,6 +1673,17 @@ public class ModelSerialiser {
 			throw new RuntimeException("Error writing " + allModels.size() + " (" + models.size() + " + " + topModels.size() + ") to " + to, e);
 		} finally {
 			reverseModelMap.clear();
+		}
+
+		System.out.printf("Wrote %d models (from %d + %d) skipping %d%n", allModels.size(), topModels.size(), models.size(), rejects.size());
+		return rejects;
+	}
+
+	public static void serialise(Set<ResourceLocation> rejectedModels, Path to) {
+		try (Writer out = Files.newBufferedWriter(to)) {
+			GSON.toJson(rejectedModels, REJECTS_TYPE, out);
+		} catch (IOException e) {
+			throw new RuntimeException("Error writing " + rejectedModels.size() + " rejected models to " + to, e);
 		}
 	}
 
@@ -1611,6 +1773,14 @@ public class ModelSerialiser {
 		}
 	}
 
+	public static Set<ResourceLocation> deserialiseRejects(Path from) {
+		try (Reader in = Files.newBufferedReader(from)) {
+			return GSON.fromJson(in, REJECTS_TYPE);
+		} catch (IOException e) {
+			throw new RuntimeException("Error reading models from " + from, e);
+		}
+	}
+
 	private static boolean equal(TextureAtlasSprite a, TextureAtlasSprite b) {
 		if (a == b) return true;
 		if (a == null || b == null) return false;
@@ -1692,7 +1862,7 @@ public class ModelSerialiser {
 		return equal(expectedSprite, actualModel.getParticleTexture(EmptyModelData.INSTANCE));
 	}
 
-	public static void compare(Map<?, IBakedModel> models) {
+	public static void compare(Map<?, IBakedModel> models, Set<ResourceLocation> skipped) {
 		Map<ResourceLocation, IBakedModel> expectedModels = ModelLoader.instance().getTopBakedModels();
 		System.out.println("Validating " + expectedModels.size() + " expected models (from " + models.size() + ')');
 
@@ -1700,6 +1870,7 @@ public class ModelSerialiser {
 		for (Block block : ForgeRegistries.BLOCKS) {
 			for (BlockState state : block.getStateContainer().getValidStates()) {
 				ModelResourceLocation model = BlockModelShapes.getModelLocation(state);
+				if (skipped.contains(model)) continue;
 
 				IBakedModel expectedModel = expectedModels.get(model);
 				if (expectedModel != null) {
@@ -1725,6 +1896,7 @@ public class ModelSerialiser {
 		for (Item item : ForgeRegistries.ITEMS) {
 			if (item != Items.AIR) {
 				ModelResourceLocation model = new ModelResourceLocation(item.getRegistryName(), "inventory");
+				if (skipped.contains(model)) continue;
 
 				IBakedModel expectedModel = expectedModels.get(model);
 				if (expectedModel != null) {

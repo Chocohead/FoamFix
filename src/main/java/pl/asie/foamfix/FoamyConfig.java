@@ -123,7 +123,7 @@ public enum FoamyConfig {
 			setComment("Enable the caching of models after the first load to speed up startup", "Will either work very well or cause bad incompatibilities with custom models");
 		}
 	},
-	LOG_SURFACE_MODELS("features", "experimental", "debug", "log-surface-models") {
+	LOG_SURFACE_MODELS("features", "experimental", "cache-models", "debug", "log-surface-models") {
 		@Override
 		boolean isValid(String value) {
 			return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
@@ -135,7 +135,7 @@ public enum FoamyConfig {
 			setComment("Enable the logging of primary model types");
 		}
 	},
-	LOG_ALL_MODELS("features", "experimental", "debug", "log-all-models") {
+	LOG_ALL_MODELS("features", "experimental", "cache-models", "debug", "log-all-models") {
 		@Override
 		boolean isValid(String value) {
 			return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
@@ -147,7 +147,19 @@ public enum FoamyConfig {
 			setComment("Enable the logging of model types recursively");
 		}
 	},
-	COMPARE_CACHED_MODELS("features", "experimental", "debug", "compare") {
+	LOG_MODELS_BLAME("features", "experimental", "cache-models", "debug", "log-model-nonserialisability") {
+		@Override
+		boolean isValid(String value) {
+			return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+		}
+
+		@Override
+		void fillDefault() {
+			set("false");
+			setComment("Enable the logging of why a given model isn't serialisable");
+		}
+	},
+	COMPARE_CACHED_MODELS("features", "experimental", "cache-models", "debug", "compare") {
 		@Override
 		boolean isValid(String value) {
 			return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);

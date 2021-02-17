@@ -18,6 +18,7 @@ import net.minecraft.client.renderer.model.ModelBakery;
 import net.minecraft.client.renderer.model.ModelManager;
 import net.minecraft.profiler.IProfiler;
 import net.minecraft.resources.IResourceManager;
+import net.minecraft.util.ResourceLocation;
 
 import pl.asie.foamfix.blob.CacheController;
 import pl.asie.foamfix.blob.ModelClasses;
@@ -46,7 +47,8 @@ abstract class ModelManagerMixin {
 	private void onceDone(ModelBakery bakery, IResourceManager resourceManager, IProfiler profiler, CallbackInfo callback) {
 		boolean logAllModels = CacheController.logFullModels();
 		boolean logModelSurface = CacheController.logModelSurface();
-		if (logModelSurface || logAllModels) {
+		boolean logSerializableModels = CacheController.logSerializableModels();
+		if (logModelSurface || logAllModels || logSerializableModels) {
 			profiler.endStartSection("model_stats");
 
 			if (logAllModels) {
@@ -64,13 +66,20 @@ abstract class ModelManagerMixin {
 				ModelClasses.noteMain(CacheController.MODEL_LOGS.resolve("baked_top_models.txt"), modelsToWrite);
 				profiler.endSection();
 			}
+
+			if (logSerializableModels) {
+				profiler.startSection("surface_baked");
+				ModelSerialiser.serialisablility(((ModelBakeryAccess) bakery).getBakedModels(), bakery.getTopBakedModels());
+				profiler.endSection();
+			}
 		}
 
 		profiler.endStartSection("model_serialisation");
 		if (!CacheController.hasCache()) {
 			profiler.startSection("serialise");
 			try {
-				ModelSerialiser.serialise(((ModelBakeryAccess) bakery).getBakedModels(), bakery.getTopBakedModels(), CacheController.MODEL_CACHE);
+				Set<ResourceLocation> rejects = ModelSerialiser.serialise(((ModelBakeryAccess) bakery).getBakedModels(), bakery.getTopBakedModels(), CacheController.MODEL_CACHE);
+				ModelSerialiser.serialise(rejects, CacheController.REJECTED_MODEL_CACHE);
 				profiler.endStartSection("optimise");
 				ModelSerialiser.optimise(CacheController.MODEL_CACHE);
 			} catch (Throwable t) {
@@ -89,8 +98,9 @@ abstract class ModelManagerMixin {
 			if (CacheController.doCompare()) {
 				profiler.startSection("deserialise");
 				Map<?, IBakedModel> remade = ModelSerialiser.deserialise(CacheController.MODEL_CACHE);
+				Set<ResourceLocation> rejects = ModelSerialiser.deserialiseRejects(CacheController.REJECTED_MODEL_CACHE);
 				profiler.endStartSection("compare");
-				ModelSerialiser.compare(remade);
+				ModelSerialiser.compare(remade, rejects);
 				profiler.endSection();
 			}
 		}
