@@ -3,33 +3,29 @@ package pl.asie.foamfix.blob;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.lang.reflect.WildcardType;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.commons.lang3.tuple.Triple;
 
 import com.google.common.collect.Streams;
@@ -41,7 +37,6 @@ import com.google.gson.InstanceCreator;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import com.google.gson.JsonSyntaxException;
 import com.google.gson.TypeAdapter;
 import com.google.gson.TypeAdapterFactory;
 import com.google.gson.annotations.SerializedName;
@@ -132,7 +127,6 @@ import it.unimi.dsi.fastutil.objects.Reference2LongOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Reference2ShortOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import it.unimi.dsi.fastutil.shorts.Short2BooleanOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.Short2ByteOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.Short2CharOpenHashMap;
@@ -159,6 +153,9 @@ import net.minecraft.client.renderer.model.ItemOverrideList;
 import net.minecraft.client.renderer.model.ItemTransformVec3f;
 import net.minecraft.client.renderer.model.ModelResourceLocation;
 import net.minecraft.client.renderer.model.ModelRotation;
+import net.minecraft.client.renderer.model.SimpleBakedModel;
+import net.minecraft.client.renderer.model.WeightedBakedModel;
+import net.minecraft.client.renderer.model.WeightedBakedModel.WeightedModel;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
@@ -173,6 +170,7 @@ import net.minecraftforge.client.model.ModelLoader;
 import net.minecraftforge.client.model.data.EmptyModelData;
 import net.minecraftforge.common.IExtensibleEnum;
 import net.minecraftforge.fml.ModList;
+import net.minecraftforge.fml.common.ObfuscationReflectionHelper;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import team.chisel.ctm.api.model.IModelCTM;
@@ -185,79 +183,23 @@ import pl.asie.foamfix.FoamyConfig;
 import pl.asie.foamfix.mixin.blob.ItemOverrideListAccess;
 import pl.asie.foamfix.mixin.blob.ModelBakeryAccess;
 import pl.asie.foamfix.mixin.blob.ModelCTMAccess;
+import pl.asie.foamfix.mixin.blob.WeightedBakedModelAccess;
+import pl.asie.foamfix.multipart.ResolvedMultipart.ResolvedMultipartModel;
 import pl.asie.foamfix.thready.ModelKey;
 
 @SuppressWarnings("deprecation")
 public class ModelSerialiser {
-	private static class DelayedModel extends BuiltInModel {
-		public final Object real;
-
-		DelayedModel(Object real) {
-			super(null, null, null, false);
-
-			this.real = real;
-		}
-	}
-	/*private static final Type ROOT_MAP = new Object() {
-	}.getClass();*/
 	@SuppressWarnings("serial") //Bit redundant for our purposes
 	private static final Type MAP_TYPE = (FoamyConfig.THREAD_MODELS.asBoolean() ? new TypeToken<Map<ModelKey, IBakedModel>>() {
 	} : new TypeToken<Map<Triple<ResourceLocation, TransformationMatrix, Boolean>, IBakedModel>>() {
 	}).getType();
+	@SuppressWarnings("serial")
+	static final Type MAP_KEY_TYPE = FoamyConfig.THREAD_MODELS.asBoolean() ? ModelKey.class : new TypeToken<Triple<ResourceLocation, TransformationMatrix, Boolean>>() {
+	}.getType();
 	private static Map<IBakedModel, Object> reverseModelMap = new IdentityHashMap<>();
-	private static Map<Field, Set<IBakedModel>> fieldsToFix = new Object2ObjectOpenHashMap<>();
-	private static final Map<Class<?>, Special<?>> SPECIAL_CASES = specialCases();
-	private static final Gson GSON = builder()/*.registerTypeAdapter(ROOT_MAP, new TypeAdapter<Map<?, IBakedModel>>() {
-		@Override
-		public void write(JsonWriter out, Map<?, IBakedModel> value) throws IOException {
-			out.beginObject();
-
-			//Initial map size
-			out.name("size");
-			out.value(value.size());
-			//Actual map contents
-			out.name("models");
-			out.beginArray();
-			for (Entry<?, IBakedModel> entry : value.entrySet()) {
-				out.beginArray();
-				GSON.toJson(entry.getKey(), entry.getKey().getClass(), out);
-				out.beginObject();
-				out.name("type");
-				out.value(entry.getValue().getClass().getName());
-				
-				out.endObject();
-				out.endArray();
-			}
-			out.endArray();
-
-			out.endObject();
-		}
-
-		@Override
-		public Map<?, IBakedModel> read(JsonReader in) throws IOException {
-			// TODO Auto-generated method stub
-			return null;
-		}
-	}).registerTypeAdapter(SimpleBakedModel.class, new TypeAdapter<SimpleBakedModel>() {
-		@Override
-		public void write(JsonWriter out, SimpleBakedModel value) throws IOException {
-			out.beginObject();
-
-			
-
-			out.endObject();
-		}
-
-		@Override
-		public SimpleBakedModel read(JsonReader in) throws IOException {
-			in.beginObject();
-
-			
-
-			in.endObject();
-			return null;
-		}
-	}.nullSafe())*/.registerTypeAdapter(ModelKey.class, new TypeAdapter<ModelKey>() {
+	private static List<AwaitingModel<?>> fieldsToFix = new ArrayList<>();
+	private static final Map<Class<?>, Special<?>> KNOWN_MODELS = specialCases();
+	private static final Gson GSON = builder().registerTypeAdapter(ModelKey.class, new TypeAdapter<ModelKey>() {
 		private final Matrix4f identity = TransformationMatrix.identity().getMatrix();
 
 		@Override
@@ -327,55 +269,7 @@ public class ModelSerialiser {
 
 			return new ModelKey(location, rotation, uvLock);
 		}
-	}.nullSafe())/*.registerTypeAdapter(Triple.class, new TypeAdapter<Triple<?, ?, ?>>() {
-		@Override
-		public void write(JsonWriter out, Triple<?, ?, ?> value) throws IOException {
-			out.beginObject();
-
-			if (value.getLeft() != null) {
-				out.name("left");
-				GSON.toJson(value.getLeft(), value.getLeft().getClass(), out);
-			}
-			if (value.getMiddle() != null) {
-				out.name("middle");
-				GSON.toJson(value.getMiddle(), value.getMiddle().getClass(), out);
-			}
-			if (value != null) {
-				out.name("right");
-				GSON.toJson(value.getRight(), value.getRight().getClass(), out);
-			}
-
-			out.endObject();
-		}
-
-		@Override
-		public Triple<?, ?, ?> read(JsonReader in) throws IOException {
-			in.beginObject();
-
-			Object left = null, middle = null, right = null;
-
-			while (in.peek() != JsonToken.END_OBJECT) {
-				String JSONname = in.nextName();
-
-				switch (JSONname) {
-				case "left":
-					left = GSON.fromJson(in, Object.class);
-					break;
-
-				case "middle":
-					middle = GSON.fromJson(in, Object.class);
-					break;
-
-				case "right":
-					right = GSON.fromJson(in, Object.class);
-					break;
-				}
-			}
-
-			in.endObject();
-			return Triple.of(left, middle, right);
-		}
-	}.nullSafe())*/.registerTypeAdapterFactory(new TypeAdapterFactory() {
+	}.nullSafe()).registerTypeAdapterFactory(new TypeAdapterFactory() {
 		private final Map<String, String> pool = Util.make(new Object2ObjectOpenHashMap<>(), map -> {
 			FoamyCacherCleanser.addCleaner(() -> {//Once the instances are all made there is no need to remember them
 				map.clear();
@@ -676,14 +570,13 @@ public class ModelSerialiser {
 		public <T> TypeAdapter<T> create(Gson gson, com.google.gson.reflect.TypeToken<T> type) {
 			return type.getRawType() == ItemOverrideList.class ? (TypeAdapter<T>) new TypeAdapter<ItemOverrideList>() {
 				private final TypeAdapter<ItemOverrideList> adapter = (TypeAdapter<ItemOverrideList>) gson.getDelegateAdapter(getOuter(), type);
+				private final UnaryOperator<ItemOverrideList> fixer = glanceFixer(new AwaitingModelList<>(instance -> ((ItemOverrideListAccess) instance).getOverrideBakedModels())); 
 
 				@Override
 				public void write(JsonWriter out, ItemOverrideList value) throws IOException {
 					if (ItemOverrideList.EMPTY == value) {
 						out.value("<default>");
 					} else {
-						/*out.value(value.getOverrides().stream().map(ItemOverride::getLocation).collect(Collectors.mapping(ResourceLocation::toString,
-																										Collectors.joining(", ", "TODO: ItemOverrideList: [", "]"))));*/
 						adapter.write(out, value);
 					}
 				}
@@ -696,151 +589,16 @@ public class ModelSerialiser {
 						return ItemOverrideList.EMPTY;
 
 					case BEGIN_OBJECT: {
-						return adapter.read(in);
+						return fixer.apply(adapter.read(in));
 					}
 
 					default:
 						throw new IllegalArgumentException("Unexpected JSON element: " + in.peek());
 					}
 				}
-			}.nullSafe() : null;
+			} : null;
 		}
-	})/*.registerTypeAdapter(SimpleBakedModel.class, new TypeAdapter<SimpleBakedModel>() {
-		@SuppressWarnings("serial") //Bit silly
-		private final Type quadList = new TypeToken<List<BakedQuad>>() {
-		}.getType();
-		@SuppressWarnings("serial")
-		private final Type quadMap = new TypeToken<Map<Direction, List<BakedQuad>>>() {
-		}.getType();
-
-		@Override
-		public void write(JsonWriter out, SimpleBakedModel value) throws IOException {
-			out.beginObject();
-
-			out.name("quads");
-			GSON.toJson(value.getQuads(null, null, null), quadList, out);
-			out.name("faceQuads");
-			GSON.toJson(Arrays.stream(Direction.values()).collect(Collectors.toMap(Function.identity(), side -> value.getQuads(null, side, null))), quadMap, out);
-			out.name("usesAO");
-			out.value(value.isAmbientOcclusion());
-			out.name("hasDepth");
-			out.value(value.isGui3d());
-			out.name("isSideLit");
-			out.value(value.isSideLit());
-			out.name("sprite");
-			GSON.toJson(value.getParticleTexture(), TextureAtlasSprite.class, out);
-			out.name("transformation");
-			GSON.toJson(value.getItemCameraTransforms(), ItemCameraTransforms.class, out);
-			out.name("itemOverrides");
-			GSON.toJson(value.getOverrides(), ItemOverrideList.class, out);
-
-			out.endObject();
-		}
-
-		@Override
-		public SimpleBakedModel read(JsonReader in) throws IOException {
-			in.beginObject();
-
-			List<BakedQuad> quads = null;
-			Map<Direction, List<BakedQuad>> faceQuads = null;
-			boolean usesAO = false, hasDepth = false, isSideLit = false;
-			TextureAtlasSprite sprite = null;
-			ItemCameraTransforms transformation = null;
-			ItemOverrideList itemOverrides = null;
-
-			while (in.peek() != JsonToken.END_OBJECT) {
-				String name = in.nextName();
-
-				switch (name) {
-				case "quads":
-					quads = GSON.fromJson(in, quadList);
-					break;
-
-				case "faceQuads":
-					faceQuads = GSON.fromJson(in, quadMap);
-					break;
-
-				case "usesAO":
-					usesAO = in.nextBoolean();
-					break;
-
-				case "hasDepth":
-					hasDepth = in.nextBoolean();
-					break;
-
-				case "isSideLit":
-					isSideLit = in.nextBoolean();
-					break;
-
-				case "sprite":
-					sprite = GSON.fromJson(in, TextureAtlasSprite.class);
-					break;
-
-				case "transformation":
-					transformation = GSON.fromJson(in, ItemCameraTransforms.class);
-					break;
-
-				case "itemOverrides":
-					itemOverrides = GSON.fromJson(in, ItemOverrideList.class);
-					break;
-				}
-			}
-
-			in.endObject();
-			return new SimpleBakedModel(quads, new EnumMap<>(faceQuads), usesAO, isSideLit, hasDepth, sprite, transformation, itemOverrides);
-		}
-	}.nullSafe()).registerTypeAdapter(BuiltInModel.class, new TypeAdapter<BuiltInModel>() {
-		@Override
-		public void write(JsonWriter out, BuiltInModel value) throws IOException {
-			out.beginObject();
-
-			out.name("isSideLit");
-			out.value(value.isSideLit());
-			out.name("sprite");
-			GSON.toJson(value.getParticleTexture(), TextureAtlasSprite.class, out);
-			out.name("transformation");
-			GSON.toJson(value.getItemCameraTransforms(), ItemCameraTransforms.class, out);
-			out.name("itemOverrides");
-			GSON.toJson(value.getOverrides(), ItemOverrideList.class, out);
-
-			out.endObject();
-		}
-
-		@Override
-		public BuiltInModel read(JsonReader in) throws IOException {
-			in.beginObject();
-
-			boolean isSideLit = false;
-			TextureAtlasSprite sprite = null;
-			ItemCameraTransforms transformation = null;
-			ItemOverrideList itemOverrides = null;
-
-			while (in.peek() != JsonToken.END_OBJECT) {
-				String name = in.nextName();
-
-				switch (name) {
-				case "isSideLit":
-					isSideLit = in.nextBoolean();
-					break;
-
-				case "sprite":
-					sprite = GSON.fromJson(in, TextureAtlasSprite.class);
-					break;
-
-				case "transformation":
-					transformation = GSON.fromJson(in, ItemCameraTransforms.class);
-					break;
-
-				case "itemOverrides":
-					itemOverrides = GSON.fromJson(in, ItemOverrideList.class);
-					break;
-				}
-			}
-
-			in.endObject();
-			return new BuiltInModel(transformation, itemOverrides, sprite, isSideLit);
-		}
-	}.nullSafe())*/.registerTypeHierarchyAdapter(IUnbakedModel.class, new TypeAdapter<IUnbakedModel>() {
+	}).registerTypeHierarchyAdapter(IUnbakedModel.class, new TypeAdapter<IUnbakedModel>() {
 		@Override
 		public void write(JsonWriter out, IUnbakedModel value) throws IOException {
 			for (Entry<ResourceLocation, IUnbakedModel> entry : ((ModelBakeryAccess) (Object) ModelLoader.instance()).getUnbakedModels().entrySet()) {
@@ -859,60 +617,7 @@ public class ModelSerialiser {
 			return ModelLoader.instance().getUnbakedModel(model);
 		}
 	}.nullSafe()).registerTypeHierarchyAdapter(IBakedModel.class, new TypeAdapter<IBakedModel>() {
-		@SuppressWarnings("serial")
-		private final Type mapKeyType = FoamyConfig.THREAD_MODELS.asBoolean() ? ModelKey.class : new TypeToken<Triple<ResourceLocation, TransformationMatrix, Boolean>>() {
-		}.getType();
-		private final Map<Class<? extends IBakedModel>, Field[]> fields = Util.make(new IdentityHashMap<>(), map -> {
-			map.put(IBakedModel.class, new Field[0]);
-		});
 		private boolean active;
-		private IBakedModel activeModel;
-		private Field activeField;
-
-		private Predicate<Field> special(Class<?> type, Predicate<Field> normal) {
-			Special<?> specialCase = SPECIAL_CASES.get(type);
-			return specialCase != null ? specialCase.attach(normal) : normal;
-		}
-
-		private Field[] findFields(Class<? extends IBakedModel> type) {
-			Field[] out = fields.get(type);
-			if (out != null) return out;
-
-			Stream<Field> fields = Arrays.stream(type.getDeclaredFields()).filter(special(type, field -> {
-				int modifiers = field.getModifiers();
-				return !Modifier.isStatic(modifiers) && !Modifier.isTransient(modifiers);
-			})).peek(field -> field.setAccessible(true));
-
-			Class<?> parentType = type.getSuperclass();
-			if (IBakedModel.class.isAssignableFrom(parentType)) {
-				Field[] parentFields = findFields(parentType.asSubclass(IBakedModel.class));
-
-				if (parentFields.length > 0) {
-					fields = Stream.concat(Arrays.stream(parentFields), fields);
-				}
-			}
-
-			this.fields.put(type, out = fields.toArray(Field[]::new));
-			return out;
-		}
-
-		/*private Map<String, Object> readFields(Class<? extends IBakedModel> type, IBakedModel instance) {
-			Map<String, Object> out = new HashMap<>();
-
-			try {
-				for (Field field : findFields(type)) {
-					Object fieldValue = field.get(instance);
-
-					if (fieldValue != null) {
-						out.put(field.getName(), fieldValue);
-					}
-				}
-			} catch (ReflectiveOperationException e) {
-				throw new RuntimeException("Unable to reflectively write " + type, e);
-			}
-
-			return out;
-		}*/
 
 		@Override
 		public void write(JsonWriter out, IBakedModel value) throws IOException {
@@ -927,10 +632,9 @@ public class ModelSerialiser {
 				Object location = reverseModelMap.get(value);
 
 				if (location != null) {
-					GSON.toJson(location, mapKeyType, out);
+					GSON.toJson(location, MAP_KEY_TYPE, out);
 				} else {
 					//This case covers multipart models which have weighted models within them
-					//out.value("TODO: Recursive IBlockModel - " + value);
 					out.beginArray();
 					writeFull(out, value);
 					out.endArray();
@@ -945,38 +649,17 @@ public class ModelSerialiser {
 			Class<? extends IBakedModel> modelClass = value.getClass();
 			out.value(modelClass.getName());
 			if (modelClass != DelayedModel.class) {
-				Map<String, Object> filledFields = new HashMap<>();//readFields(modelClass, value);
-				try {
-					out.name("fields");
-					out.beginObject();
-					for (Field field : findFields(modelClass)) {
-						Object fieldValue = field.get(value);
-	
-						if (fieldValue != null) {
-							filledFields.put(field.getName(), fieldValue);
-	
-							Class<?> fieldType = fieldValue.getClass();
-							if (!(fieldType.isArray() ? fieldType.getComponentType() : fieldType).isPrimitive()) {
-								out.name(field.getName());
-								out.value(fieldType.getName());
-							}
-						}
-					}
-				} catch (ReflectiveOperationException e) {
-					throw new RuntimeException("Unable to reflectively write " + modelClass, e);
-				}
-				out.endObject();
 				out.name("blob");
-				out.beginObject();
-				for (Entry<String, Object> entry : filledFields.entrySet()) {
-					out.name(entry.getKey());
-					Object fieldValue = entry.getValue();
-					GSON.toJson(fieldValue, fieldValue.getClass(), out);
+				@SuppressWarnings("unchecked") //Probably fine
+				Special<IBakedModel> modelAdapter = (Special<IBakedModel>) KNOWN_MODELS.get(modelClass);
+				if (modelAdapter == null) {
+					throw new IllegalArgumentException("Unexpected model type: " + modelClass);
+				} else {
+					modelAdapter.write(out, value);
 				}
-				out.endObject();
 			} else {
 				out.name("actual");
-				GSON.toJson(((DelayedModel) value).real, mapKeyType, out);
+				GSON.toJson(((DelayedModel) value).real, MAP_KEY_TYPE, out);
 			}
 
 			out.endObject();
@@ -992,20 +675,12 @@ public class ModelSerialiser {
 					active = false;
 				}
 			} else if (in.peek() == JsonToken.BEGIN_ARRAY) {
-				IBakedModel activeModel = this.activeModel;
-				Field activeField = this.activeField;
-				try {
-					in.beginArray();
-					IBakedModel out = readFull(in);
-					in.endArray();
-					return out;
-				} finally {
-					this.activeField = activeField;
-					this.activeModel = activeModel;
-				}
+				in.beginArray();
+				IBakedModel out = readFull(in);
+				in.endArray();
+				return out;
 			} else {
-				Object location = GSON.fromJson(in, mapKeyType);
-				fieldsToFix.computeIfAbsent(activeField, k -> new ReferenceOpenHashSet<>()).add(activeModel);
+				Object location = GSON.fromJson(in, MAP_KEY_TYPE);
 				return new DelayedModel(location);
 			}
 		}
@@ -1030,166 +705,25 @@ public class ModelSerialiser {
 
 			IBakedModel out;
 			if (clazz != DelayedModel.class) {
-				@SuppressWarnings("unchecked") //We'll be careful
-				Special<? extends IBakedModel> special = (Special<? extends IBakedModel>) SPECIAL_CASES.get(clazz);
-				out = special != null && special.hasMaker() ? special.make(clazz) : UnsafeHacks.newInstance(clazz); //Thanks cpw
-
-				name = in.nextName();
-				if (!"fields".equals(name)) {
-					throw new UnsupportedOperationException("TODO: Read out of order names: " + name);
-				}
-
-				in.beginObject();
-				Map<String, Field> fieldMap = Arrays.stream(findFields(clazz)).collect(Collectors.toMap(Field::getName, Function.identity()));
-				Map<Field, Type> fieldTypeMap = new Object2ReferenceOpenHashMap<>();
-				while (in.hasNext()) {
-					String fieldName = in.nextName();
-					Field field = fieldMap.get(fieldName);
-					if (field == null) throw new IllegalArgumentException("Unexpected field name " + fieldName + " for " + type);
-	
-					String fieldType = in.nextString(); //Actual instance type of the field
-					try {
-						Class<?> fieldClass = Class.forName(fieldType); //Skip noting the types of baked models
-						//if (!IBakedModel.class.isAssignableFrom(fieldClass.isArray() ? fieldClass.getComponentType() : fieldClass)) fieldTypeMap.put(field, fieldClass);
-						if (IModelCTM.class.isAssignableFrom(fieldClass)) fieldTypeMap.put(field, fieldClass);
-					} catch (ClassNotFoundException e) {//Not the best of signs
-						System.err.println("Field " + field + " has unrecognised type: " + fieldType);
-					}
-				}
-				in.endObject();
-
 				name = in.nextName();
 				if (!"blob".equals(name)) {
 					throw new UnsupportedOperationException("Unexpected name: " + name);
 				}
 
-				in.beginObject();
-				try {
-					while (in.hasNext()) {
-						String fieldName = in.nextName();
-						Field field = fieldMap.get(fieldName);
-						if (field == null) throw new IllegalArgumentException("Unexpected field name " + fieldName + " for " + type);
-
-						boolean isFinal = Modifier.isFinal(field.getModifiers());
-						FieldType fieldType = FieldType.of(field);
-						switch (fieldType) {
-						case BOOLEAN: {
-							boolean value = in.nextBoolean();
-							if (isFinal) {
-								UnsafeHacks.setBooleanField(field, out, value);
-							} else {
-								field.setBoolean(out, value);
-							}
-							break;
-						}
-
-						case BYTE: {
-							byte value = (byte) in.nextInt();
-							if (isFinal) {
-								UnsafeHacks.setByteField(field, out, value);
-							} else {
-								field.setByte(out, value);
-							}
-							break;
-						}
-
-						case CHAR: {
-							String fullValue = in.nextString();
-							if (fullValue == null || fullValue.isEmpty()) throw new JsonSyntaxException("Expecting character, got: " + fullValue);
-	
-							char value = fullValue.charAt(0);
-							if (isFinal) {
-								UnsafeHacks.setCharField(field, out, value);
-							} else {
-								field.setChar(out, value);
-							}
-							break;
-						}
-
-						case SHORT: {
-							short value = (short) in.nextInt();
-							if (isFinal) {
-								UnsafeHacks.setShortField(field, out, value);
-							} else {
-								field.setShort(out, value);
-							}
-							break;
-						}
-
-						case INT: {
-							int value = in.nextInt();
-							if (isFinal) {
-								UnsafeHacks.setIntField(field, out, value);
-							} else {
-								field.setInt(out, value);
-							}
-							break;
-						}
-
-						case LONG: {
-							long value = in.nextLong();
-							if (isFinal) {
-								UnsafeHacks.setLongField(field, out, value);
-							} else {
-								field.setLong(out, value);
-							}
-							break;
-						}
-
-						case FLOAT: {
-							float value = (float) in.nextDouble();
-							if (isFinal) {
-								UnsafeHacks.setFloatField(field, out, value);
-							} else {
-								field.setFloat(out, value);
-							}
-							break;
-						}
-
-						case DOUBLE: {
-							double value = in.nextDouble();
-							if (isFinal) {
-								UnsafeHacks.setDoubleField(field, out, value);
-							} else {
-								field.setDouble(out, value);
-							}
-							break;
-						}
-
-						case OBJECT: {
-							//Hopefully this will be close enough to the real field's type
-							Object value;
-							try {
-								activeModel = out;
-								activeField = field;
-								value = GSON.fromJson(in, fieldTypeMap.getOrDefault(field, field.getGenericType()));
-							} finally {
-								activeField = null;
-								activeModel = null;
-							}
-							if (isFinal) {
-								UnsafeHacks.setField(field, out, value);
-							} else {
-								field.set(out, value);
-							}
-							break;
-						}
-
-						default:
-							throw new AssertionError("Unexpected field type: " + fieldType + " for " + type + '#' + fieldName);
-						}
-					}
-				} catch (ReflectiveOperationException | UnsupportedOperationException e) {
-					throw new RuntimeException("Unable to reflectively fill " + type, e);
+				@SuppressWarnings("unchecked") //Probably fine
+				Special<IBakedModel> modelAdapter = (Special<IBakedModel>) KNOWN_MODELS.get(clazz);
+				if (modelAdapter == null) {
+					throw new IllegalArgumentException("Lost model type: " + clazz);
+				} else {
+					out = modelAdapter.read(in);
 				}
-				in.endObject();
 			} else {
 				name = in.nextName();
 				if (!"actual".equals(name)) {
 					throw new UnsupportedOperationException("Unexpected name: " + name);
 				}
 
-				out = new DelayedModel(GSON.fromJson(in, mapKeyType));
+				out = new DelayedModel(GSON.fromJson(in, MAP_KEY_TYPE));
 			}
 
 			in.endObject();
@@ -1485,12 +1019,7 @@ public class ModelSerialiser {
 			}
 			}
 		}
-	})/*.registerTypeAdapter(Int2ObjectMap.class, new InstanceCreator<Int2ObjectMap<?>>() {
-		@Override
-		public Int2ObjectMap<?> createInstance(Type type) {
-			return new Int2ObjectOpenHashMap<Object>();
-		}
-	})*/.registerTypeAdapterFactory(new TypeAdapterFactory() {
+	}).registerTypeAdapterFactory(new TypeAdapterFactory() {
 		private <T extends Enum<T>> TypeAdapter<T> forEnum(Class<T> type) {
 			Map<String, T> nameToConstant = new Object2ReferenceOpenHashMap<>();
 			Map<T, String> constantToName = new EnumMap<>(type);
@@ -1549,94 +1078,357 @@ public class ModelSerialiser {
 	private static Map<Class<?>, Special<?>> specialCases() {
 		Map<Class<?>, Special<?>> out = new IdentityHashMap<>();
 
-		if (ModList.get().isLoaded("ctm")) {
-			out.put(AbstractCTMBakedModel.class, new Special<AbstractCTMBakedModel>(AbstractCTMBakedModel.class, (Field field) -> {
-				switch (field.getName()) {
-				case "model":
-				case "parent":
-					return true;
+		out.put(SimpleBakedModel.class, new Special<SimpleBakedModel>() {
+			@SuppressWarnings("serial") //Bit silly
+			private final Type quadList = new TypeToken<List<BakedQuad>>() {
+			}.getType();
+			@SuppressWarnings("serial")
+			private final Type quadMap = new TypeToken<Map<Direction, List<BakedQuad>>>() {
+			}.getType();
 
-				default:
-					return false;
+			@Override
+			public void write(JsonWriter out, SimpleBakedModel value) throws IOException {
+				out.beginObject();
+
+				out.name("quads");
+				GSON.toJson(value.getQuads(null, null, null), quadList, out);
+				out.name("faceQuads");
+				GSON.toJson(Arrays.stream(Direction.values()).collect(Collectors.toMap(Function.identity(), side -> value.getQuads(null, side, null))), quadMap, out);
+				out.name("usesAO");
+				out.value(value.isAmbientOcclusion());
+				out.name("hasDepth");
+				out.value(value.isGui3d());
+				out.name("isSideLit");
+				out.value(value.isSideLit());
+				out.name("sprite");
+				GSON.toJson(value.getParticleTexture(), TextureAtlasSprite.class, out);
+				out.name("transformation");
+				GSON.toJson(value.getItemCameraTransforms(), ItemCameraTransforms.class, out);
+				out.name("itemOverrides");
+				GSON.toJson(value.getOverrides(), ItemOverrideList.class, out);
+
+				out.endObject();
+			}
+
+			@Override
+			public SimpleBakedModel read(JsonReader in) throws IOException {
+				in.beginObject();
+
+				List<BakedQuad> quads = null;
+				Map<Direction, List<BakedQuad>> faceQuads = null;
+				boolean usesAO = false, hasDepth = false, isSideLit = false;
+				TextureAtlasSprite sprite = null;
+				ItemCameraTransforms transformation = null;
+				ItemOverrideList itemOverrides = null;
+
+				while (in.peek() != JsonToken.END_OBJECT) {
+					String name = in.nextName();
+
+					switch (name) {
+					case "quads":
+						quads = GSON.fromJson(in, quadList);
+						break;
+
+					case "faceQuads":
+						faceQuads = GSON.fromJson(in, quadMap);
+						assert faceQuads instanceof EnumMap;
+						break;
+
+					case "usesAO":
+						usesAO = in.nextBoolean();
+						break;
+
+					case "hasDepth":
+						hasDepth = in.nextBoolean();
+						break;
+
+					case "isSideLit":
+						isSideLit = in.nextBoolean();
+						break;
+
+					case "sprite":
+						sprite = GSON.fromJson(in, TextureAtlasSprite.class);
+						break;
+
+					case "transformation":
+						transformation = GSON.fromJson(in, ItemCameraTransforms.class);
+						break;
+
+					case "itemOverrides":
+						itemOverrides = GSON.fromJson(in, ItemOverrideList.class);
+						break;
+					}
 				}
-			}));
-			out.put(ModelBakedCTM.class, new Special<ModelBakedCTM>(ModelBakedCTM.class, (Type type) -> {
-				return new ModelBakedCTM(Fake.INSTANCE, Fake.INSTANCE);
-			}));
-			out.put(ModelCTM.class, new Special<ModelCTM>(ModelCTM.class, typeAdapter -> {
-				typeAdapter.accept(ModelCTM.class, new TypeAdapter<ModelCTM>() {
-					@SuppressWarnings("serial")
-					private final Type overridesType = new TypeToken<Map<Integer, JsonElement>>() {
-					}.getType();
+
+				in.endObject();
+				return new SimpleBakedModel(quads, faceQuads, usesAO, isSideLit, hasDepth, sprite, transformation, itemOverrides);
+			}
+		});
+		out.put(BuiltInModel.class, new Special<BuiltInModel>() {
+			@Override
+			public void write(JsonWriter out, BuiltInModel value) throws IOException {
+				out.beginObject();
+
+				out.name("isSideLit");
+				out.value(value.isSideLit());
+				out.name("sprite");
+				GSON.toJson(value.getParticleTexture(), TextureAtlasSprite.class, out);
+				out.name("transformation");
+				GSON.toJson(value.getItemCameraTransforms(), ItemCameraTransforms.class, out);
+				out.name("itemOverrides");
+				GSON.toJson(value.getOverrides(), ItemOverrideList.class, out);
+
+				out.endObject();
+			}
+
+			@Override
+			public BuiltInModel read(JsonReader in) throws IOException {
+				in.beginObject();
+
+				boolean isSideLit = false;
+				TextureAtlasSprite sprite = null;
+				ItemCameraTransforms transformation = null;
+				ItemOverrideList itemOverrides = null;
+
+				while (in.peek() != JsonToken.END_OBJECT) {
+					String name = in.nextName();
+
+					switch (name) {
+					case "isSideLit":
+						isSideLit = in.nextBoolean();
+						break;
+
+					case "sprite":
+						sprite = GSON.fromJson(in, TextureAtlasSprite.class);
+						break;
+
+					case "transformation":
+						transformation = GSON.fromJson(in, ItemCameraTransforms.class);
+						break;
+
+					case "itemOverrides":
+						itemOverrides = GSON.fromJson(in, ItemOverrideList.class);
+						break;
+					}
+				}
+
+				in.endObject();
+				return new BuiltInModel(transformation, itemOverrides, sprite, isSideLit);
+			}
+		});
+		out.put(WeightedBakedModel.class, new Special<WeightedBakedModel>() {
+			private final UnaryOperator<WeightedBakedModel> fixer = glanceFixer(new ModelField<>(ObfuscationReflectionHelper.findField(WeightedBakedModel.class, "field_177566_c")));
+			@SuppressWarnings("serial")
+			private final Type modelsType = new TypeToken<List<WeightedModel>>() {
+			}.getType();
+
+			@Override
+			public void write(JsonWriter out, WeightedBakedModel value) throws IOException {
+				out.beginObject();
+
+				out.name("models");
+				GSON.toJson(((WeightedBakedModelAccess) value).getModels(), modelsType, out);
+
+				out.endObject();
+			}
+
+			@Override
+			public WeightedBakedModel read(JsonReader in) throws IOException {
+				in.beginObject();
+
+				String name = in.nextName();
+				if (!"models".equals(name)) {
+					throw new UnsupportedOperationException("Unexpected name: " + name);
+				}
+				List<WeightedModel> models = GSON.fromJson(in, modelsType);
+
+				in.endObject();
+				return fixer.apply(new WeightedBakedModel(models));
+			}
+
+			@Override
+			protected void appendExtraTypes(BiConsumer<Type, TypeAdapter<?>> typeAdapter) {
+				typeAdapter.accept(WeightedModel.class, new TypeAdapter<WeightedModel>() {
+					private final UnaryOperator<WeightedModel> fixer = glanceFixer(new QuickModelField<>(ObfuscationReflectionHelper.findField(WeightedModel.class, "field_185281_b"), model -> model.model));
 
 					@Override
-					public void write(JsonWriter out, ModelCTM value) throws IOException {
-						out.beginObject();
+					public void write(JsonWriter out, WeightedModel value) throws IOException {
+						out.beginArray();
 
-						BlockModel model = ((ModelCTMAccess) value).getModelinfo();
-						if (model == null) {
-							out.name("vanillaModel");
-							GSON.toJson(((ModelCTMAccess) value).getVanillamodel(), IUnbakedModel.class, out);
-						} else {
-							out.name("modelInfo");
-							GSON.toJson(model, BlockModel.class, out);
-							out.name("overrides");
-							GSON.toJson(((ModelCTMAccess) value).getOverrides(), overridesType, out);
-						}
+						GSON.toJson(value.model, IBakedModel.class, out);
+						out.value(value.itemWeight);
 
-						out.endObject();
+						out.endArray();
 					}
 
 					@Override
-					public ModelCTM read(JsonReader in) throws IOException {
-						in.beginObject();
+					public WeightedModel read(JsonReader in) throws IOException {
+						in.beginArray();
 
-						IUnbakedModel vanillaModel = null;
-						BlockModel modelInfo = null;
-						Int2ObjectMap<JsonElement> overrides = null;
+						IBakedModel model = GSON.fromJson(in, IBakedModel.class);
+						int weight = in.nextInt();
 
-						while (in.peek() != JsonToken.END_OBJECT) {
-							String name = in.nextName();
-
-							switch (name) {
-							case "vanillaModel":
-								assert modelInfo == null;
-								assert overrides == null;
-								vanillaModel = GSON.fromJson(in, IUnbakedModel.class);
-								break;
-
-							case "modelInfo":
-								assert vanillaModel == null;
-								modelInfo = GSON.fromJson(in, BlockModel.class);
-								break;
-
-							case "overrides":
-								assert vanillaModel == null;
-								overrides = GSON.fromJson(in, overridesType);
-								break;
-							}
-						}
-
-						in.endObject();
-						ModelCTM out = modelInfo == null ? new ModelCTM(vanillaModel) : new ModelCTM(modelInfo, overrides);
-						out.initializeTextures(ModelLoader.instance(), ModelLoader.defaultTextureGetter());
-						return out;
+						in.endArray();
+						return fixer.apply(new WeightedModel(model, weight));
 					}
 				});
-			}));
+			}
+		});
+		out.put(ResolvedMultipartModel.class, new Special<ResolvedMultipartModel>() {
+			private final Consumer<IBakedModel[]> fixer = queueFixer(new AwaitingModelArray<>(Function.identity()));
+
+			@Override
+			public void write(JsonWriter out, ResolvedMultipartModel value) throws IOException {
+				out.beginObject();
+
+				out.name("models");
+				GSON.toJson(value.models, IBakedModel[].class, out);
+
+				out.endObject();
+			}
+
+			@Override
+			public ResolvedMultipartModel read(JsonReader in) throws IOException {
+				in.beginObject();
+
+				String name = in.nextName();
+				if (!"models".equals(name)) {
+					throw new UnsupportedOperationException("Unexpected name: " + name);
+				}
+				IBakedModel[] models = GSON.fromJson(in, IBakedModel[].class);
+
+				in.endObject();
+				fixer.accept(models);
+				return new ResolvedMultipartModel(models);
+			}
+		});
+
+		if (ModList.get().isLoaded("ctm")) {
+			out.put(ModelBakedCTM.class, new Special<ModelBakedCTM>() {
+				private final UnaryOperator<ModelBakedCTM> fixer = glanceFixer(new QuickModelField<ModelBakedCTM>(FieldUtils.getDeclaredField(AbstractCTMBakedModel.class, "parent", true), ModelBakedCTM::getParent));
+				@Override
+				public void write(JsonWriter out, ModelBakedCTM value) throws IOException {
+					out.beginObject();
+
+					out.name("model");
+					withType(GSON, out, value.getModel());
+					out.name("parent");
+					GSON.toJson(value.getParent(), IBakedModel.class, out);
+
+					out.endObject();
+				}
+
+				@Override
+				public ModelBakedCTM read(JsonReader in) throws IOException {
+					in.beginObject();
+
+					IModelCTM model = null;
+					IBakedModel parent = null;
+
+					while (in.peek() != JsonToken.END_OBJECT) {
+						String name = in.nextName();
+
+						switch (name) {
+						case "model":
+							model = withType(GSON, in);
+							break;
+
+						case "parent":
+							parent = GSON.fromJson(in, IBakedModel.class);
+							break;
+						}
+					}
+
+					in.endObject();
+					return fixer.apply(new ModelBakedCTM(model, parent));
+				}
+
+				@Override
+				protected void appendExtraTypes(BiConsumer<Type, TypeAdapter<?>> typeAdapter) {
+					typeAdapter.accept(ModelCTM.class, new TypeAdapter<ModelCTM>() {
+						@SuppressWarnings("serial")
+						private final Type overridesType = new TypeToken<Map<Integer, JsonElement>>() {
+						}.getType();
+
+						@Override
+						public void write(JsonWriter out, ModelCTM value) throws IOException {
+							out.beginObject();
+
+							BlockModel model = ((ModelCTMAccess) value).getModelinfo();
+							if (model == null) {
+								out.name("vanillaModel");
+								GSON.toJson(((ModelCTMAccess) value).getVanillamodel(), IUnbakedModel.class, out);
+							} else {
+								out.name("modelInfo");
+								GSON.toJson(model, BlockModel.class, out);
+								out.name("overrides");
+								GSON.toJson(((ModelCTMAccess) value).getOverrides(), overridesType, out);
+							}
+
+							out.endObject();
+						}
+
+						@Override
+						public ModelCTM read(JsonReader in) throws IOException {
+							in.beginObject();
+
+							IUnbakedModel vanillaModel = null;
+							BlockModel modelInfo = null;
+							Int2ObjectMap<JsonElement> overrides = null;
+
+							while (in.peek() != JsonToken.END_OBJECT) {
+								String name = in.nextName();
+
+								switch (name) {
+								case "vanillaModel":
+									assert modelInfo == null;
+									assert overrides == null;
+									vanillaModel = GSON.fromJson(in, IUnbakedModel.class);
+									break;
+
+								case "modelInfo":
+									assert vanillaModel == null;
+									modelInfo = GSON.fromJson(in, BlockModel.class);
+									break;
+
+								case "overrides":
+									assert vanillaModel == null;
+									overrides = GSON.fromJson(in, overridesType);
+									break;
+								}
+							}
+
+							in.endObject();
+							ModelCTM out = modelInfo == null ? new ModelCTM(vanillaModel) : new ModelCTM(modelInfo, overrides);
+							out.initializeTextures(ModelLoader.instance(), ModelLoader.defaultTextureGetter());
+							return out;
+						}
+					});
+				}
+			});
 		}
 
 		return out;
 	}
 
+	static <T> UnaryOperator<T> glanceFixer(AwaitingModel<T> fixer) {
+		Consumer<T> fix = queueFixer(fixer);
+		return instance -> {
+			fix.accept(instance);
+			return instance;
+		};
+	}
+
+	static <T> Consumer<T> queueFixer(AwaitingModel<T> fixer) {
+		fieldsToFix.add(fixer);
+		return fixer::queue;
+	}
+
 	private static GsonBuilder builder() {
 		GsonBuilder out = new GsonBuilder();
 
-		for (Special<?> specialCase : SPECIAL_CASES.values()) {
+		for (Special<?> specialCase : KNOWN_MODELS.values()) {
 			specialCase.appendExtraTypes(out::registerTypeAdapter);
-			if (specialCase.hasMaker()) {
-				out.registerTypeAdapter(specialCase.name, specialCase.maker());
-			}
 		}
 
 		return out;
@@ -1754,15 +1546,12 @@ public class ModelSerialiser {
 			JsonObject model = entry.getValue();
 
 			if (model.size() == 2 && delayedType.equals(model.getAsJsonPrimitive("type")) && model.has("actual")) {//DelayedModels are already as simple as they need to be
-				@SuppressWarnings("serial")
-				Type mapKeyType = FoamyConfig.THREAD_MODELS.asBoolean() ? ModelKey.class : new TypeToken<Triple<ResourceLocation, TransformationMatrix, Boolean>>() {
-				}.getType();
-				Object key = GSON.fromJson(model.get("actual"), mapKeyType);
+				Object key = GSON.fromJson(model.get("actual"), MAP_KEY_TYPE);
 
 				Object newKey = swaps.get(key);
 				if (newKey != null) {
 					//System.out.println("Swapping " + key + " to " + newKey);
-					model.add("actual", GSON.toJsonTree(newKey, mapKeyType));
+					model.add("actual", GSON.toJsonTree(newKey, MAP_KEY_TYPE));
 				} else if (!uniqueModels.containsValue(key)) {
 					System.err.println(entry.getKey() + " depends on " + key + " before it is defined!");
 				}
@@ -1786,16 +1575,6 @@ public class ModelSerialiser {
 		}
 	}
 
-	private static IBakedModel fetchModel(Map<?, IBakedModel> models, Object location) {
-		IBakedModel model = models.get(location);
-		if (model == null) {
-			System.err.println("Unable to find requested model: " + location);
-			return null; //Oh dear
-		}
-
-		return model;
-	}
-
 	public static Map<?, IBakedModel> deserialise(Path from) {
 		try (Reader in = Files.newBufferedReader(from)) {
 			Map<?, IBakedModel> out = GSON.fromJson(in, MAP_TYPE);
@@ -1803,20 +1582,6 @@ public class ModelSerialiser {
 			for (Entry<?, IBakedModel> entry : out.entrySet()) {
 				IBakedModel model = entry.getValue();
 
-				/*while (model instanceof DelayedModel || model == null) {
-					Object key = ((DelayedModel) model).real;
-					if (entry.getKey().equals(key)) {
-						throw new IllegalStateException("Needed model which itself is needed: " + key);
-					}
-
-					model = out.get(key);
-					if (model == null && !out.containsKey(key)) {
-						System.err.println("Lost reused model: " + key + '?');
-						//entry.setValue(null); //It's null anyway...
-					}
-				}
-
-				entry.setValue(model);*/
 				if (model instanceof DelayedModel) {
 					Object key = ((DelayedModel) model).real;
 					model = out.get(key);
@@ -1832,191 +1597,17 @@ public class ModelSerialiser {
 				}
 			}
 
-			for (Entry<Field, Set<IBakedModel>> entry : fieldsToFix.entrySet()) {
-				Field field = entry.getKey();
-				Class<?> rawFieldType = field.getType();
-
-				if (IBakedModel.class.isAssignableFrom(rawFieldType)) {
-					for (IBakedModel instance : entry.getValue()) {
-						try {
-							DelayedModel model = (DelayedModel) field.get(instance);
-							IBakedModel real = fetchModel(out, model.real);
-	
-							if (Modifier.isFinal(field.getModifiers())) {
-								UnsafeHacks.setField(field, instance, real);
-							} else {
-								field.set(instance, real);
-							}
-						} catch (ReflectiveOperationException | ClassCastException e) {
-							Object key = "<unknown>";
-							for (Entry<?, IBakedModel> innerEntry : out.entrySet()) {
-								if (innerEntry.getValue() == instance) {
-									key = innerEntry.getKey();
-									break;
-								}
-							}
-							throw new RuntimeException("Failed to fill " + field + " in " + instance + " (" + key + ')', e);
-						}
-					}
-					continue;
-				} else if (IBakedModel[].class.isAssignableFrom(rawFieldType)) {
-					for (IBakedModel instance : entry.getValue()) {
-						try {
-							IBakedModel[] models = (IBakedModel[]) field.get(instance);
-	
-							for (int i = 0, end = models.length; i < end; i++) {
-								if (models[i] instanceof DelayedModel) {
-									models[i] = fetchModel(out, ((DelayedModel) models[i]).real);
-								}
-							}
-						} catch (ReflectiveOperationException | ClassCastException | ArrayStoreException e) {
-							Object key = "<unknown>";
-							for (Entry<?, IBakedModel> innerEntry : out.entrySet()) {
-								if (innerEntry.getValue() == instance) {
-									key = innerEntry.getKey();
-									break;
-								}
-							}
-							throw new RuntimeException("Failed to fill " + field + " in " + instance + " (" + key + ')', e);
-						}
-					}
-					continue;
-				} else if (Collection.class.isAssignableFrom(rawFieldType)) {
-					@SuppressWarnings("unchecked")
-					TypeToken<? extends Collection<?>> fieldType = (TypeToken<? extends Collection<?>>) TypeToken.of(field.getGenericType());
-					Type fullFieldType = fieldType.getSupertype(Collection.class).getType();
-
-					Type collectionType;
-					if (fullFieldType instanceof ParameterizedType) {
-						collectionType = ((ParameterizedType) fullFieldType).getActualTypeArguments()[0];
-					} else if (fullFieldType instanceof WildcardType) {
-						collectionType = ((WildcardType) fullFieldType).getUpperBounds()[0];
-					} else {
-						System.err.println("Unable to find type of collection for " + field);
-						continue;
-					}
-
-					if (collectionType instanceof Class<?>) {
-						if (IBakedModel.class.isAssignableFrom((Class<?>) collectionType)) {
-							for (IBakedModel instance : entry.getValue()) {
-								try {
-									@SuppressWarnings("unchecked") //Checked using the logic above
-									Collection<IBakedModel> models = (Collection<IBakedModel>) field.get(instance);
-									List<IBakedModel> replacement = new ArrayList<>(models.size());
-	
-									for (IBakedModel model : models) {
-										replacement.add(model instanceof DelayedModel ? fetchModel(out, ((DelayedModel) model).real) : model);
-									}
-									models.clear(); //How badly can it go?
-									models.addAll(replacement);
-								} catch (ReflectiveOperationException | ClassCastException | UnsupportedOperationException e) {
-									Object key = "<unknown>";
-									for (Entry<?, IBakedModel> innerEntry : out.entrySet()) {
-										if (innerEntry.getValue() == instance) {
-											key = innerEntry.getKey();
-											break;
-										}
-									}
-									throw new RuntimeException("Failed to fill " + field + " in " + instance + " (" + key + ')', e);
-								}
-							}
-							continue;
-						} else if ("net.minecraft.client.renderer.model.WeightedBakedModel$WeightedModel".equals(collectionType.getTypeName())) {
-							Field innerField;
-							out: try {
-								for (Field maybeField : Class.forName("net.minecraft.client.renderer.model.WeightedBakedModel$WeightedModel").getDeclaredFields()) {
-									if (maybeField.getType() == IBakedModel.class) {
-										innerField = maybeField;
-										break out;
-									}
-								}
-
-								throw new NoSuchFieldException("Can't find field in WeightedModel!");
-							} catch (ReflectiveOperationException e) {
-								throw new RuntimeException("Error finding field in WeightedModel", e);
-							}
-
-							for (IBakedModel instance : entry.getValue()) {
-								try {
-									Collection<?> models = (Collection<?>) field.get(instance);
-
-									for (Object weightedModel : models) {
-										IBakedModel model = (IBakedModel) innerField.get(weightedModel);
-										if (!(model instanceof DelayedModel)) continue;
-
-										IBakedModel real = fetchModel(out, ((DelayedModel) model).real);
-										if (Modifier.isFinal(innerField.getModifiers())) {
-											UnsafeHacks.setField(innerField, weightedModel, real);
-										} else {
-											innerField.set(weightedModel, real);
-										}
-									}
-								} catch (ReflectiveOperationException | ClassCastException e) {
-									Object key = "<unknown>";
-									for (Entry<?, IBakedModel> innerEntry : out.entrySet()) {
-										if (innerEntry.getValue() == instance) {
-											key = innerEntry.getKey();
-											break;
-										}
-									}
-									throw new RuntimeException("Failed to fill " + innerField + " in " + instance + " (" + key + ')', e);
-								}
-							}
-							continue;
-						}
-					} else {
-						System.err.println("Unexpected collection type: " + collectionType + " (" + collectionType.getClass() + ')');
-					}
-				} else if (Map.class.isAssignableFrom(rawFieldType)) {
-					@SuppressWarnings("unchecked")
-					TypeToken<? extends Map<?, ?>> fieldType = (TypeToken<? extends Map<?, ?>>) TypeToken.of(field.getGenericType());					
-					Type fullFieldType = fieldType.getSupertype(Map.class).getType();
-
-					//Can we work out the key type?
-					if (!(fullFieldType instanceof ParameterizedType)) {
-						System.err.println("Unable to find type of map for " + field);
-						continue;
-					}
-
-					Type[] types = ((ParameterizedType) fullFieldType).getActualTypeArguments();
-					Type keyType = types[0];
-					Type valueType = types[1];
-
-					throw new UnsupportedOperationException("TODO: " + field + ", a Map<" + keyType + ", " + valueType + '>');
-				} else if (ItemOverrideList.class.isAssignableFrom(rawFieldType)) {
-					for (IBakedModel instance : entry.getValue()) {
-						try {
-							ItemOverrideList overrides = (ItemOverrideList) field.get(instance);
-
-							for (ListIterator<IBakedModel> it = ((ItemOverrideListAccess) overrides).getOverrideBakedModels().listIterator(); it.hasNext();) {
-								IBakedModel model = it.next();
-
-								if (model instanceof DelayedModel) {
-									it.set(fetchModel(out, ((DelayedModel) model).real));
-								}
-							}
-						} catch (ReflectiveOperationException | UnsupportedOperationException e) {
-							Object key = "<unknown>";
-							for (Entry<?, IBakedModel> innerEntry : out.entrySet()) {
-								if (innerEntry.getValue() == instance) {
-									key = innerEntry.getKey();
-									break;
-								}
-							}
-							throw new RuntimeException("Failed to fill " + field + " in " + instance + " (" + key + ')', e);
-						}
-					}
-					continue;
-				}
-
-				System.err.println("TODO: Reflectively find nested IBakedModel field in " + field.toGenericString());
+			for (AwaitingModel<?> field : fieldsToFix) {
+				field.fill(out);
 			}
 
 			return out;
 		} catch (IOException e) {
 			throw new RuntimeException("Error reading models from " + from, e);
 		} finally {
-			fieldsToFix.clear();
+			for (AwaitingModel<?> field : fieldsToFix) {
+				field.clear();
+			}
 		}
 	}
 

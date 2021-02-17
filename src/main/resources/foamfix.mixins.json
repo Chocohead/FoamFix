@@ -36,7 +36,8 @@
     "blob.ModelBakeryAccess",
     "blob.ModelManagerMixin",
     "blob.ItemOverrideListAccess",
-    "blob.ModelCTMAccess"
+    "blob.ModelCTMAccess",
+    "blob.WeightedBakedModelAccess"
   ],
   "injectors": {
     "defaultRequire": 1

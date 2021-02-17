@@ -123,6 +123,42 @@ public enum FoamyConfig {
 			setComment("Enable the caching of models after the first load to speed up startup", "Will either work very well or cause bad incompatibilities with custom models");
 		}
 	},
+	LOG_SURFACE_MODELS("features", "experimental", "debug", "log-surface-models") {
+		@Override
+		boolean isValid(String value) {
+			return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+		}
+
+		@Override
+		void fillDefault() {
+			set("false");
+			setComment("Enable the logging of primary model types");
+		}
+	},
+	LOG_ALL_MODELS("features", "experimental", "debug", "log-all-models") {
+		@Override
+		boolean isValid(String value) {
+			return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+		}
+
+		@Override
+		void fillDefault() {
+			set("false");
+			setComment("Enable the logging of model types recursively");
+		}
+	},
+	COMPARE_CACHED_MODELS("features", "experimental", "debug", "compare") {
+		@Override
+		boolean isValid(String value) {
+			return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+		}
+
+		@Override
+		void fillDefault() {
+			set("true");
+			setComment("Enable the comparing of newly cached models to the originals to observe any differences");
+		}
+	},
 	LOG_DFU("debug", "dfu") {
 		@Override
 		boolean isValid(String value) {

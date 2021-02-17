@@ -27,8 +27,34 @@
  */
 package pl.asie.foamfix;
 
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLModContainer;
 
-@Mod("foamfix") //Placate Forge thinking we're not a real mod
+import team.chisel.ctm.client.util.TextureMetadataHandler;
+
+import pl.asie.foamfix.blob.CacheController;
+
+@Mod("foamfix") //Placate Forge thinking we're a real mod too
+@EventBusSubscriber(bus = Bus.MOD)
 public class FoamFix {
+	@SubscribeEvent
+	public void preInit(FMLClientSetupEvent event) {
+		ModList.get().getModContainerById("ctm").ifPresent(ctm -> {
+			if (ctm instanceof FMLModContainer) {
+				if (CacheController.hasCache()) {
+					IEventBus bus = ((FMLModContainer) ctm).getEventBus();
+					//Remove the CTM wrapper if we're using the cache
+					bus.unregister(TextureMetadataHandler.INSTANCE);
+				}
+			} else {
+				System.err.println("Unexpected mod type: " + ctm.getClass());
+			}
+		});
+	}
 }

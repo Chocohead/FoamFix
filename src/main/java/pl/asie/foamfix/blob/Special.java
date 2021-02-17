@@ -1,65 +1,59 @@
 package pl.asie.foamfix.blob;
 
-import java.lang.reflect.Field;
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
 
-import com.google.gson.InstanceCreator;
+import com.google.gson.Gson;
 import com.google.gson.TypeAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
-class Special<T> {
-	public final Class<T> name;
-	private final InstanceCreator<T> maker;
-	private final Predicate<Field> fieldFilter;
-	private final Consumer<BiConsumer<Type, TypeAdapter<?>>> extraTypes;
+import net.minecraft.client.renderer.model.IBakedModel;
 
-	public Special(Class<T> name, InstanceCreator<T> maker) {
-		this(name, maker, null, null);
+abstract class Special<T extends IBakedModel> extends TypeAdapter<T> {
+	public Special() {
 	}
 
-	public Special(Class<T> name, Predicate<Field> fieldFilter) {
-		this(name, null, fieldFilter, null);
+	protected void appendExtraTypes(BiConsumer<Type, TypeAdapter<?>> typeAdapter) {
 	}
 
-	public Special(Class<T> name, Consumer<BiConsumer<Type, TypeAdapter<?>>> extraTypes) {
-		this(name, null, null, extraTypes);
+	protected static void withType(Gson gson, JsonWriter out, Object thing) throws IOException {
+		out.beginObject();
+
+		out.name("type");
+		out.value(thing.getClass().getName());
+		out.name("blob");
+		gson.toJson(thing, thing.getClass(), out);
+
+		out.endObject();
 	}
 
-	public Special(Class<T> name, InstanceCreator<T> maker, Consumer<BiConsumer<Type, TypeAdapter<?>>> extraTypes) {
-		this(name, maker, null, extraTypes);
-	}
+	protected static <T> T withType(Gson gson, JsonReader in) throws IOException {
+		in.beginObject();
 
-	public Special(Class<T> name, Predicate<Field> fieldFilter, Consumer<BiConsumer<Type, TypeAdapter<?>>> extraTypes) {
-		this(name, null, fieldFilter, extraTypes);
-	}
+		String name = in.nextName();
+		String type;
+		if ("type".equals(name)) {
+			type = in.nextString();
+		} else {
+			throw new UnsupportedOperationException("TODO: Read out of order names: " + name);
+		}
 
-	public Special(Class<T> name, InstanceCreator<T> maker, Predicate<Field> fieldFilter, Consumer<BiConsumer<Type, TypeAdapter<?>>> extraTypes) {
-		this.name = name;
-		this.maker = maker;
-		this.fieldFilter = fieldFilter;
-		this.extraTypes = extraTypes;
-	}
+		Class<?> clazz;
+		try {
+			clazz = Class.forName(type);
+		} catch (ReflectiveOperationException e) {
+			throw new RuntimeException("Unable to reflectively create " + type, e);
+		}
 
-	public void appendExtraTypes(BiConsumer<Type, TypeAdapter<?>> adapterConsumer) {
-		if (extraTypes != null) extraTypes.accept(adapterConsumer);
-	}
+		name = in.nextName();
+		if (!"blob".equals(name)) {
+			throw new UnsupportedOperationException("Unexpected name: " + name);
+		}
 
-	public boolean hasMaker() {
-		return maker != null;
-	}
-
-	public InstanceCreator<T> maker() {
-		if (!hasMaker()) throw new IllegalStateException("Have no custom maker for " + name);
-		return maker;
-	}
-
-	public T make(Type type) {
-		return maker().createInstance(type);
-	}
-
-	public Predicate<Field> attach(Predicate<Field> normal) {
-		return fieldFilter != null ? normal.and(fieldFilter) : normal;
+		T out = gson.fromJson(in, clazz);
+		in.endObject();
+		return out;
 	}
 }

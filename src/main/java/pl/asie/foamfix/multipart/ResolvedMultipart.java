@@ -115,10 +115,10 @@ public class ResolvedMultipart implements IUnbakedModel {
 		return new ResolvedMultipartModel(Arrays.stream(variants).map(variant -> variant.bakeModel(modelBakery, spriteGetter, transform, location)).filter(Objects::nonNull).toArray(IBakedModel[]::new));
 	}
 
-	private static class ResolvedMultipartModel implements IDynamicBakedModel {
-		private final IBakedModel[] models;
+	public static class ResolvedMultipartModel implements IDynamicBakedModel {
+		public final IBakedModel[] models;
 
-		ResolvedMultipartModel(IBakedModel[] models) {
+		public ResolvedMultipartModel(IBakedModel[] models) {
 			this.models = models;
 		}
 
