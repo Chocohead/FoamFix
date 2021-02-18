@@ -50,7 +50,7 @@ public class CacheController {
 		Set<ResourceLocation> rejects = ModelSerialiser.deserialiseRejects(CacheController.REJECTED_MODEL_CACHE);
 		timer.stop();
 
-		System.out.printf("Read in %d models and %d skips, taking %sms%n", remade.size(), rejects.size(), timer.elapsed(TimeUnit.MILLISECONDS));
+		ModelSerialiser.LOGGER.info("Read in {} models and {} skips, taking {}ms", remade.size(), rejects.size(), timer.elapsed(TimeUnit.MILLISECONDS));
 		TransformationMatrix rotation = ModelRotation.X0_Y0.getRotation();
 		boolean uvLock = ModelRotation.X0_Y0.isUvLock();
 
@@ -70,8 +70,8 @@ public class CacheController {
 		}
 		timer.stop();
 
-		System.out.printf("Loaded %d models (%d top), leaving %d, taking %sms%n",
-							bakedModels.size(), topBakedModels.size(), topUnbakedModels.size(), timer.elapsed(TimeUnit.MILLISECONDS));
+		ModelSerialiser.LOGGER.info("Loaded {} models ({} top), leaving {}, taking {}ms",
+										bakedModels.size(), topBakedModels.size(), topUnbakedModels.size(), timer.elapsed(TimeUnit.MILLISECONDS));
 	}
 
 	public static boolean doCompare() {

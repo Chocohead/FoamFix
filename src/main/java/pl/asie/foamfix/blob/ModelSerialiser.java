@@ -28,6 +28,9 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.commons.lang3.tuple.Triple;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
@@ -195,6 +198,7 @@ import pl.asie.foamfix.thready.ModelKey;
 
 @SuppressWarnings("deprecation")
 public class ModelSerialiser {
+	public static final Logger LOGGER = LogManager.getLogger("FoamFix/Model-Serialisation");
 	@SuppressWarnings("serial") //Bit redundant for our purposes
 	private static final Type MAP_TYPE = (FoamyConfig.THREAD_MODELS.asBoolean() ? new TypeToken<Map<ModelKey, IBakedModel>>() {
 	} : new TypeToken<Map<Triple<ResourceLocation, TransformationMatrix, Boolean>, IBakedModel>>() {
@@ -1607,7 +1611,7 @@ public class ModelSerialiser {
 					if (findCause) {
 						String cause = blameNonserialisability(model);
 						if (blameMap.computeIfAbsent(model.getClass(), k -> new ObjectOpenHashSet<>()).add(cause)) {
-							System.out.printf("Can't serialise %s: %s%n", model.getClass().getName(), cause);
+							LOGGER.warn("Can't serialise {}: {}", model.getClass().getName(), cause);
 						}
 					}
 					totalRejected++;
@@ -1624,19 +1628,19 @@ public class ModelSerialiser {
 			}
 		}
 
-		System.out.printf("Out of the %d models, %.1f%% were serialisable:%n", seenModels.size(), (totalValid * 100F) / seenModels.size());
+		LOGGER.printf(Level.INFO, "Out of the %d models, %.1f%% were serialisable:", seenModels.size(), (totalValid * 100F) / seenModels.size());
 		if (!valid.isEmpty()) {
-			System.out.printf("\tOf the %d serialisable models, there were %d types:%n", totalValid, valid.size());
+			LOGGER.info("\tOf the {} serialisable models, there were {} types:", totalValid, valid.size());
 			for (Reference2IntMap.Entry<Class<? extends IBakedModel>> entry : Reference2IntMaps.fastIterable(valid)) {
-				System.out.printf("\t\t%d were %s%n", entry.getIntValue(), entry.getKey().getName());
+				LOGGER.info("\t\t{} were {}", entry.getIntValue(), entry.getKey().getName());
 			}
-		} else System.out.println("No models were serialisable!");
+		} else LOGGER.warn("No models were serialisable!");
 		if (!rejected.isEmpty()) {
-			System.out.printf("\tOf the %d non-serialisable models, there were %d types:%n", totalRejected, rejected.size());
+			LOGGER.info("\tOf the {} non-serialisable models, there were {} types:", totalRejected, rejected.size());
 			for (Reference2IntMap.Entry<Class<? extends IBakedModel>> entry : Reference2IntMaps.fastIterable(rejected)) {
-				System.out.printf("\t\t%d were %s%n", entry.getIntValue(), entry.getKey().getName());
+				LOGGER.info("\t\t{} were {}", entry.getIntValue(), entry.getKey().getName());
 			}
-		} else System.out.println("No models were non-serialisable");
+		} else LOGGER.info("No models were non-serialisable");
 	}
 
 	public static Set<ResourceLocation> serialise(Map<?, IBakedModel> models, Map<ResourceLocation, IBakedModel> topModels, Path to) {
@@ -1683,7 +1687,7 @@ public class ModelSerialiser {
 			reverseModelMap.clear();
 		}
 
-		System.out.printf("Wrote %d models (from %d + %d) skipping %d%n", allModels.size(), topModels.size(), models.size(), rejects.size());
+		LOGGER.debug("Wrote {} models (from {} + {}) skipping {}", allModels.size(), topModels.size(), models.size(), rejects.size());
 		return rejects;
 	}
 
@@ -1721,10 +1725,10 @@ public class ModelSerialiser {
 
 				Object newKey = swaps.get(key);
 				if (newKey != null) {
-					//System.out.println("Swapping " + key + " to " + newKey);
+					//LOGGER.debug("Swapping " + key + " to " + newKey);
 					model.add("actual", GSON.toJsonTree(newKey, MAP_KEY_TYPE));
 				} else if (!seenKeys.contains(key)) {
-					System.err.println(entry.getKey() + " depends on " + key + " before it is defined!");
+					LOGGER.error(entry.getKey() + " depends on " + key + " before it is defined!");
 				}
 			} else {
 				seenKeys.add(entry.getKey());
@@ -1739,7 +1743,7 @@ public class ModelSerialiser {
 			}
 		}
 
-		System.out.printf("Of %d models at %d locations, %d are unnecessary duplicates%n", models.size(), seenKeys.size(), swaps.size());
+		LOGGER.debug("Of {} models at {} locations, {} are unnecessary duplicates", models.size(), seenKeys.size(), swaps.size());
 		try (Writer out = Files.newBufferedWriter(from)) {
 			GSON.toJson(models, mapType, out);
 		} catch (IOException e) {
@@ -1759,7 +1763,7 @@ public class ModelSerialiser {
 					model = out.get(key);
 
 					if (model == null && !out.containsKey(key)) {
-						System.err.println("Lost reused model: " + key + '?');
+						LOGGER.warn("Lost reused model: " + key + '?');
 						entry.setValue(null); //It's null anyway...
 					} else if (model instanceof DelayedModel) {
 						throw new IllegalStateException("Needed model which itself is needed: " + key);
@@ -1803,7 +1807,7 @@ public class ModelSerialiser {
 		try {
 			expectedResult = expected.getAsBoolean();
 		} catch (Throwable t) {
-			System.err.println("The model for " + model + " was unimpressed");
+			LOGGER.error("The model for " + model + " was unimpressed");
 			return true; //Whatever
 		}
 
@@ -1826,8 +1830,7 @@ public class ModelSerialiser {
 				random.setSeed(42);
 				expectedQuads = expectedModel.getQuads(state, side, random, EmptyModelData.INSTANCE);
 			} catch (Throwable t) {
-				System.err.println("The model for " + model + " was unimpressed");
-				t.printStackTrace();
+				LOGGER.error("The model for " + model + " was unimpressed", t);
 				continue;
 			}
 
@@ -1865,7 +1868,7 @@ public class ModelSerialiser {
 		try {
 			expectedSprite = expectedModel.getParticleTexture(EmptyModelData.INSTANCE);
 		} catch (Throwable t) {
-			System.err.println("The model for " + model + " was unimpressed");
+			LOGGER.error("The model for " + model + " was unimpressed");
 			return true;
 		}
 
@@ -1874,7 +1877,7 @@ public class ModelSerialiser {
 
 	public static void compare(Map<?, IBakedModel> models, Set<ResourceLocation> skipped) {
 		Map<ResourceLocation, IBakedModel> expectedModels = ModelLoader.instance().getTopBakedModels();
-		System.out.println("Validating " + expectedModels.size() + " expected models (from " + models.size() + ')');
+		LOGGER.info("Validating " + expectedModels.size() + " expected models (from " + models.size() + ')');
 
 		Random random = new Random();
 		for (Block block : ForgeRegistries.BLOCKS) {
@@ -1889,16 +1892,16 @@ public class ModelSerialiser {
 					IBakedModel actualModel = models.get(key);
 
 					if (actualModel == null) {
-						System.err.println("Lost the model for " + model);
-						System.err.println();
+						LOGGER.error("Lost the model for " + model);
+						LOGGER.error("");
 					} else if (!equal(random, state, model, expectedModel, actualModel)) {
-						System.err.println("Produced different model for " + model);
-						if (expectedModel.getClass() != actualModel.getClass()) System.err.println("Produced " + actualModel.getClass() + " rather than " + expectedModel.getClass());
-						System.err.println();
+						LOGGER.error("Produced different model for " + model);
+						if (expectedModel.getClass() != actualModel.getClass()) LOGGER.error("Produced " + actualModel.getClass() + " rather than " + expectedModel.getClass());
+						LOGGER.error("");
 					}
 				} else {
-					System.err.println("Apparently got null top model for " + model);
-					System.err.println();
+					LOGGER.warn("Apparently got null top model for " + model);
+					LOGGER.warn("");
 				}
 			}
 		}
@@ -1915,19 +1918,19 @@ public class ModelSerialiser {
 					IBakedModel actualModel = models.get(key);
 
 					if (actualModel == null) {
-						System.err.println("Lost the model for " + model);
-						System.err.println();
+						LOGGER.error("Lost the model for " + model);
+						LOGGER.error("");
 					} else if (!equal(random, null, model, expectedModel, actualModel)) {
-						System.err.println("Produced different model for " + model);
-						System.err.println();
+						LOGGER.error("Produced different model for " + model);
+						LOGGER.error("");
 					}
 				} else {
-					System.err.println("Apparently got null top model for " + model);
-					System.err.println();
+					LOGGER.warn("Apparently got null top model for " + model);
+					LOGGER.warn("");
 				}
 			}
 		}
 
-		System.out.println("Check complete");
+		LOGGER.info("Check complete");
 	}
 }
