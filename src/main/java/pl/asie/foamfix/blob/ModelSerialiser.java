@@ -167,7 +167,6 @@ import net.minecraft.item.Item;
 import net.minecraft.item.Items;
 import net.minecraft.util.Direction;
 import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.Util;
 import net.minecraft.util.math.vector.Matrix4f;
 import net.minecraft.util.math.vector.TransformationMatrix;
 import net.minecraft.util.math.vector.Vector3f;
@@ -186,6 +185,7 @@ import team.chisel.ctm.client.model.ModelCTM;
 
 import pl.asie.foamfix.FoamyCacherCleanser;
 import pl.asie.foamfix.FoamyConfig;
+import pl.asie.foamfix.Util;
 import pl.asie.foamfix.mixin.blob.ItemOverrideListAccess;
 import pl.asie.foamfix.mixin.blob.ModelBakeryAccess;
 import pl.asie.foamfix.mixin.blob.ModelCTMAccess;
@@ -610,7 +610,7 @@ public class ModelSerialiser {
 	}).registerTypeHierarchyAdapter(IUnbakedModel.class, new TypeAdapter<IUnbakedModel>() {
 		@Override
 		public void write(JsonWriter out, IUnbakedModel value) throws IOException {
-			for (Entry<ResourceLocation, IUnbakedModel> entry : ((ModelBakeryAccess) (Object) ModelLoader.instance()).getUnbakedModels().entrySet()) {
+			for (Entry<ResourceLocation, IUnbakedModel> entry : Util.entrySet(((ModelBakeryAccess) (Object) ModelLoader.instance()).getUnbakedModels())) {
 				if (entry.getValue() == value) {
 					GSON.toJson(entry.getKey(), ResourceLocation.class, out);
 					return;
@@ -1644,7 +1644,7 @@ public class ModelSerialiser {
 		Set<ResourceLocation> rejects = new ObjectOpenHashSet<>();
 
 		assert reverseModelMap.isEmpty();
-		for (Entry<ResourceLocation, IBakedModel> entry : topModels.entrySet()) {//Loop top models first as mods can replace these via ModelBakeEvent
+		for (Entry<ResourceLocation, IBakedModel> entry : Util.entrySet(topModels)) {//Loop top models first as mods can replace these via ModelBakeEvent
 			Object key = FoamyConfig.THREAD_MODELS.asBoolean() ? new ModelKey(entry.getKey(), ModelRotation.X0_Y0.getRotation(), ModelRotation.X0_Y0.isUvLock())
 																: Triple.of(entry.getKey(), ModelRotation.X0_Y0.getRotation(), ModelRotation.X0_Y0.isUvLock());
 
@@ -1660,7 +1660,7 @@ public class ModelSerialiser {
 				rejects.add(entry.getKey());
 			}
 		}
-		for (Entry<?, IBakedModel> entry : models.entrySet()) {
+		for (Entry<?, IBakedModel> entry : Util.entrySet(models)) {
 			if (!allModels.containsKey(entry.getKey())) {
 				IBakedModel model = entry.getValue();
 
@@ -1709,10 +1709,11 @@ public class ModelSerialiser {
 		}
 
 		Map<JsonObject, Object> uniqueModels = new Object2ObjectOpenHashMap<>(models.size());
+		Set<Object> seenKeys = new ObjectOpenHashSet<>(models.size());
 		Map<Object, Object> swaps = new Object2ObjectOpenHashMap<>();
 
 		final JsonPrimitive delayedType = new JsonPrimitive(DelayedModel.class.getName());
-		for (Entry<?, JsonObject> entry : models.entrySet()) {
+		for (Entry<?, JsonObject> entry : Util.entrySet(models)) {
 			JsonObject model = entry.getValue();
 
 			if (model.size() == 2 && delayedType.equals(model.getAsJsonPrimitive("type")) && model.has("actual")) {//DelayedModels are already as simple as they need to be
@@ -1722,10 +1723,11 @@ public class ModelSerialiser {
 				if (newKey != null) {
 					//System.out.println("Swapping " + key + " to " + newKey);
 					model.add("actual", GSON.toJsonTree(newKey, MAP_KEY_TYPE));
-				} else if (!uniqueModels.containsValue(key)) {
+				} else if (!seenKeys.contains(key)) {
 					System.err.println(entry.getKey() + " depends on " + key + " before it is defined!");
 				}
 			} else {
+				seenKeys.add(entry.getKey());
 				Object newKey = uniqueModels.get(model);//Have we already seen this (actual) model?
 
 				if (newKey == null) {//No, note the model down
@@ -1737,7 +1739,7 @@ public class ModelSerialiser {
 			}
 		}
 
-		System.out.printf("Of %d models, %d are unnecessary duplicates%n", models.size(), swaps.size());
+		System.out.printf("Of %d models at %d locations, %d are unnecessary duplicates%n", models.size(), seenKeys.size(), swaps.size());
 		try (Writer out = Files.newBufferedWriter(from)) {
 			GSON.toJson(models, mapType, out);
 		} catch (IOException e) {
@@ -1749,7 +1751,7 @@ public class ModelSerialiser {
 		try (Reader in = Files.newBufferedReader(from)) {
 			Map<?, IBakedModel> out = GSON.fromJson(in, MAP_TYPE);
 
-			for (Entry<?, IBakedModel> entry : out.entrySet()) {
+			for (Entry<?, IBakedModel> entry : Util.entrySet(out)) {
 				IBakedModel model = entry.getValue();
 
 				if (model instanceof DelayedModel) {
