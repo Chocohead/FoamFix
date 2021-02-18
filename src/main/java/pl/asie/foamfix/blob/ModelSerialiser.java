@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.commons.lang3.tuple.Triple;
 
+import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Streams;
 import com.google.common.primitives.Primitives;
@@ -1106,7 +1107,7 @@ public class ModelSerialiser {
 			@Override
 			public Set<Class<? extends IBakedModel>> blameNonvalidity(SimpleBakedModel model) {
 				return ((ItemOverrideListAccess) model.getOverrides()).getOverrideBakedModels().stream()
-								.filter(ModelSerialiser::canSerialise).map(IBakedModel::getClass).collect(Collectors.toSet());
+								.filter(Predicates.not(ModelSerialiser::canSerialise)).map(IBakedModel::getClass).collect(Collectors.toSet());
 			}
 
 			@Override
@@ -1200,7 +1201,7 @@ public class ModelSerialiser {
 			@Override
 			public Set<Class<? extends IBakedModel>> blameNonvalidity(BuiltInModel model) {
 				return ((ItemOverrideListAccess) model.getOverrides()).getOverrideBakedModels().stream()
-								.filter(ModelSerialiser::canSerialise).map(IBakedModel::getClass).collect(Collectors.toSet());
+								.filter(Predicates.not(ModelSerialiser::canSerialise)).map(IBakedModel::getClass).collect(Collectors.toSet());
 			}
 
 			@Override
@@ -1272,7 +1273,7 @@ public class ModelSerialiser {
 			@Override
 			public Set<Class<? extends IBakedModel>> blameNonvalidity(WeightedBakedModel model) {
 				return ((WeightedBakedModelAccess) model).getModels().stream().map(weightedModel -> weightedModel.model)
-								.filter(ModelSerialiser::canSerialise).map(IBakedModel::getClass).collect(Collectors.toSet());
+								.filter(Predicates.not(ModelSerialiser::canSerialise)).map(IBakedModel::getClass).collect(Collectors.toSet());
 			}
 
 			@Override
@@ -1341,7 +1342,7 @@ public class ModelSerialiser {
 
 			@Override
 			public Set<Class<? extends IBakedModel>> blameNonvalidity(ResolvedMultipartModel model) {
-				return Arrays.stream(model.models).filter(ModelSerialiser::canSerialise).map(IBakedModel::getClass).collect(Collectors.toSet());
+				return Arrays.stream(model.models).filter(Predicates.not(ModelSerialiser::canSerialise)).map(IBakedModel::getClass).collect(Collectors.toSet());
 			}
 
 			@Override
@@ -1592,7 +1593,9 @@ public class ModelSerialiser {
 		Reference2IntMap<Class<? extends IBakedModel>> valid = Util.make(new Reference2IntOpenHashMap<>(), map -> map.defaultReturnValue(-1));
 		int totalRejected = 0;
 		Reference2IntMap<Class<? extends IBakedModel>> rejected = Util.make(new Reference2IntOpenHashMap<>(), map -> map.defaultReturnValue(-1));
+
 		final boolean findCause = FoamyConfig.LOG_MODELS_BLAME.asBoolean();
+		Map<Class<? extends IBakedModel>, Set<String>> blameMap = findCause ? new IdentityHashMap<>() : null;
 
 		for (IBakedModel model : Iterables.concat(topModels.values(), models.values())) {//Loop top models first as mods can replace these via ModelBakeEvent
 			if (model != null && seenModels.add(model)) {
@@ -1601,7 +1604,12 @@ public class ModelSerialiser {
 					totalValid++;
 					map = valid;
 				} else {
-					if (findCause) System.out.printf("Can't serialise %s as %s%n", model.getClass().getName(), blameNonserialisability(model));
+					if (findCause) {
+						String cause = blameNonserialisability(model);
+						if (blameMap.computeIfAbsent(model.getClass(), k -> new ObjectOpenHashSet<>()).add(cause)) {
+							System.out.printf("Can't serialise %s: %s%n", model.getClass().getName(), cause);
+						}
+					}
 					totalRejected++;
 					map = rejected;
 				}
