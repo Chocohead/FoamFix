@@ -6,22 +6,29 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.Logger;
 
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectLinkedOpenHashSet;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import it.unimi.dsi.fastutil.objects.Reference2IntArrayMap;
+import it.unimi.dsi.fastutil.objects.Reference2IntMap;
 
 import org.objectweb.asm.Opcodes;
 
@@ -41,6 +48,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import com.mojang.datafixers.util.Pair;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.renderer.BlockModelShapes;
 import net.minecraft.client.renderer.model.BlockModel;
@@ -49,6 +57,7 @@ import net.minecraft.client.renderer.model.IUnbakedModel;
 import net.minecraft.client.renderer.model.ItemModelGenerator;
 import net.minecraft.client.renderer.model.ModelBakery;
 import net.minecraft.client.renderer.model.ModelBakery.BlockStateDefinitionException;
+import net.minecraft.client.renderer.model.ModelBakery.ModelListWrapper;
 import net.minecraft.client.renderer.model.ModelResourceLocation;
 import net.minecraft.client.renderer.model.ModelRotation;
 import net.minecraft.client.renderer.model.RenderMaterial;
@@ -100,6 +109,10 @@ abstract class ModelBakeryMixin {
 	private @Final Map<ResourceLocation, IBakedModel> topBakedModels;
 	@Shadow
 	private Map<ResourceLocation, Pair<AtlasTexture, SheetData>> sheetData;
+	@Unique
+	private final AtomicInteger modelCounter = new AtomicInteger(1);
+	@Shadow
+	private @Final Object2IntMap<BlockState> stateModelIds;
 	@Unique
 	private boolean isLoadingModels;
 	@Unique
@@ -322,6 +335,38 @@ abstract class ModelBakeryMixin {
 		return isLoadingModels ? loadedModels.get() : unbakedModels;
 	}
 
+	@Redirect(method = "loadBlockstate", at = @At(value = "INVOKE", target = "Ljava/util/HashMap;forEach(Ljava/util/function/BiConsumer;)V", remap = false))
+	private void registerModelIDs(HashMap<ModelListWrapper, Set<BlockState>> models, BiConsumer<ModelListWrapper, Set<BlockState>> lambda) {
+		Reference2IntMap<BlockState> stateToID = new Reference2IntArrayMap<>();
+
+		for (Set<BlockState> states : models.values()) {
+			for (Iterator<BlockState> it = states.iterator(); it.hasNext();) {
+				BlockState state = it.next();
+
+				if (state.getRenderType() != BlockRenderType.MODEL) {
+					it.remove();
+					stateToID.put(state, 0);
+				}
+			}
+
+            if (states.size() > 1) {
+            	int ID = modelCounter.getAndIncrement();
+
+            	for (BlockState state : states) {
+            		stateToID.put(state, ID);
+            	}
+            }
+		}
+
+		if (!stateToID.isEmpty()) {
+			Util.getServerExecutor().execute(() -> {
+				synchronized (stateModelIds) {
+					stateModelIds.putAll(stateToID);
+				}
+			});
+		}
+	}
+
 	@Inject(method = "putModel", at = @At("HEAD"), cancellable = true)
 	private void grabModel(ResourceLocation location, IUnbakedModel model, CallbackInfo call) {
 		if (isLoadingModels) {
@@ -338,6 +383,11 @@ abstract class ModelBakeryMixin {
 	@Overwrite
 	private void loadTopModel(ModelResourceLocation location) {
 		throw new UnsupportedOperationException("Unexpectedly loaded model for " + location);
+	}
+
+	@Overwrite
+	private void registerModelIds(Iterable<BlockState> states) {
+		throw new UnsupportedOperationException("Unexpectedly registered model IDs for " + states);
 	}
 
 	@Shadow
